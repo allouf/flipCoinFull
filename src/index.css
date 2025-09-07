@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import wallet-specific styles */
+@import './styles/wallet-theme.css';
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-base-100 text-base-content;
+  }
+}
+
+@layer components {
+  .coin {
+    @apply w-24 h-24 rounded-full border-4 border-primary shadow-lg;
+    transition: transform 0.6s ease-in-out;
+  }
+  
+  .coin.flipping {
+    animation: flip 1s ease-in-out infinite;
+  }
+  
+  .gradient-bg {
+    background: linear-gradient(135deg, #9945FF 0%, #14F195 100%);
+  }
+  
+  .glass-card {
+    @apply bg-base-200/50 backdrop-blur-sm border border-base-300/20 rounded-xl;
+  }
+}
+
+@keyframes flip {
+  0% { transform: rotateY(0deg); }
+  50% { transform: rotateY(180deg); }
+  100% { transform: rotateY(360deg); }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-base-300;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-primary rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-primary/80;
+}

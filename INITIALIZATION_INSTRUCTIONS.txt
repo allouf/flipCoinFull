@@ -1,0 +1,31 @@
+=== SOLANA COIN FLIPPER - INITIALIZATION NEEDED ===
+
+Status: Program deployed but not initialized
+
+Program ID: GNyb71eMrPVKcfTnxQjzVJu2bfMQdmwNWFfuN3ripe47
+Your Wallet: E5s2vtJ6yQebU4x291S81UVX8MW9RwqFnSkXzRYAhJaz
+Network: https://api.devnet.solana.com
+Wallet Balance: 1 SOL
+
+🎯 HOW TO INITIALIZE:
+
+Option 1 (RECOMMENDED): Initialize via Frontend
+1. Run: npm start
+2. Connect your wallet (E5s2vtJ6yQebU4x291S81UVX8MW9RwqFnSkXzRYAhJaz)
+3. Create the first game room - this will automatically initialize the program
+4. The frontend handles all the complex initialization logic
+
+Option 2: Manual Script (if Option 1 fails)
+1. Make sure you have the correct IDL file
+2. Use anchor CLI or custom initialization script
+3. Check Anchor.toml has correct program ID
+
+🔗 EXPLORER LINKS:
+- Program: https://explorer.solana.com/address/GNyb71eMrPVKcfTnxQjzVJu2bfMQdmwNWFfuN3ripe47?cluster=devnet
+- Your Wallet: https://explorer.solana.com/address/E5s2vtJ6yQebU4x291S81UVX8MW9RwqFnSkXzRYAhJaz?cluster=devnet
+
+Frontend Configuration Check:
+- .env should have: REACT_APP_PROGRAM_ID=GNyb71eMrPVKcfTnxQjzVJu2bfMQdmwNWFfuN3ripe47
+- Wallet adapter should be configured for devnet
+
+🚀 START WITH: npm start

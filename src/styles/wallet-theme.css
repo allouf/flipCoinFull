@@ -1,0 +1,215 @@
+/* Wallet-specific component styling */
+
+/* Wallet Connect Button Styles */
+.wallet-connect-btn {
+  @apply btn btn-primary transition-all duration-200;
+}
+
+.wallet-connect-btn:hover {
+  @apply scale-105 shadow-lg;
+}
+
+.wallet-connect-btn.loading {
+  @apply cursor-not-allowed;
+}
+
+/* Wallet Modal Styles */
+.wallet-modal-backdrop {
+  backdrop-filter: blur(8px);
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.wallet-modal-content {
+  @apply bg-base-100 rounded-2xl shadow-2xl border border-base-300;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.wallet-option {
+  @apply w-full p-4 rounded-lg border border-base-200 
+         hover:border-primary hover:bg-base-200 
+         transition-all duration-200 text-left
+         focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+}
+
+.wallet-option:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* Network Selector Styles */
+.network-indicator {
+  @apply w-2 h-2 rounded-full;
+}
+
+.network-mainnet {
+  @apply bg-success;
+}
+
+.network-devnet {
+  @apply bg-warning;
+}
+
+.network-testnet {
+  @apply bg-error;
+}
+
+/* Balance Display Styles */
+.balance-card {
+  @apply bg-base-200 rounded-lg p-4 border border-base-300;
+}
+
+.balance-item {
+  @apply flex items-center justify-between py-2;
+}
+
+.balance-token-icon {
+  @apply w-8 h-8 rounded-full flex items-center justify-center overflow-hidden;
+}
+
+.balance-refresh-btn {
+  @apply btn btn-ghost btn-xs hover:btn-outline;
+}
+
+.balance-refresh-btn.refreshing {
+  @apply animate-spin cursor-not-allowed;
+}
+
+/* Address Display Styles */
+.address-display {
+  @apply font-mono text-sm select-all bg-base-200 
+         rounded px-2 py-1 border border-base-300;
+}
+
+.address-copy-btn {
+  @apply btn btn-ghost btn-xs opacity-60 hover:opacity-100 transition-opacity;
+}
+
+.address-explorer-btn {
+  @apply btn btn-ghost btn-xs opacity-60 hover:opacity-100 transition-opacity;
+}
+
+/* Dropdown Styles */
+.wallet-dropdown {
+  @apply dropdown-content z-[1] menu p-2 shadow-lg 
+         bg-base-100 rounded-box border border-base-300;
+  min-width: 200px;
+}
+
+.wallet-dropdown-item {
+  @apply flex items-center justify-between px-3 py-2 
+         rounded-lg hover:bg-base-200 transition-colors;
+}
+
+/* Loading States */
+.wallet-loading-spinner {
+  @apply loading loading-spinner loading-sm;
+}
+
+.wallet-skeleton {
+  @apply animate-pulse bg-base-300 rounded;
+}
+
+/* Success/Error States */
+.wallet-success {
+  @apply text-success;
+}
+
+.wallet-error {
+  @apply text-error;
+}
+
+.wallet-warning {
+  @apply text-warning;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .wallet-modal-content {
+    margin: 1rem;
+    width: calc(100% - 2rem);
+  }
+  
+  .wallet-dropdown {
+    width: 100vw;
+    max-width: calc(100vw - 2rem);
+    right: 1rem;
+  }
+  
+  .balance-card {
+    padding: 1rem;
+  }
+}
+
+/* Dark Mode Adjustments */
+[data-theme="dark"] .wallet-modal-backdrop {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="dark"] .wallet-option {
+  border-color: hsl(var(--b3));
+}
+
+[data-theme="dark"] .wallet-option:hover {
+  border-color: hsl(var(--p));
+  background-color: hsl(var(--b2));
+}
+
+/* Animation Classes */
+.wallet-fade-in {
+  animation: walletFadeIn 0.2s ease-out;
+}
+
+.wallet-fade-out {
+  animation: walletFadeOut 0.2s ease-in;
+}
+
+.wallet-scale-in {
+  animation: walletScaleIn 0.2s ease-out;
+}
+
+@keyframes walletFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes walletFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes walletScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Utility Classes */
+.wallet-glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.wallet-gradient {
+  background: linear-gradient(135deg, hsl(var(--p)) 0%, hsl(var(--s)) 100%);
+}
+
+.wallet-text-gradient {
+  background: linear-gradient(135deg, hsl(var(--p)) 0%, hsl(var(--s)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

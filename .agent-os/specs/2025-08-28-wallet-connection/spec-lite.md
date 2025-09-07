@@ -1,0 +1,3 @@
+# Spec Summary (Lite)
+
+Implement a comprehensive wallet connection system supporting multiple Solana wallets with persistent sessions, network switching between Devnet/Mainnet, and detailed account information display. Users can connect via Phantom, Solflare, Backpack and other wallets, view their SOL/SPL balances and transaction history, with automatic reconnection on return visits for seamless betting access.
