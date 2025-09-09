@@ -89,7 +89,8 @@
       "Bash(nvm use:*)",
       "Bash(NODE_ENV=staging npm run test:real-vrf-setup)",
       "Bash(git pull:*)",
-      "Bash(git count-objects:*)"
+      "Bash(git count-objects:*)",
+      "Bash(vercel:*)"
     ],
     "deny": [],
     "ask": []
