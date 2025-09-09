@@ -42,7 +42,7 @@
           "isSigner": false
         },
         {
-          "name": "escrowAccount",
+          "name": "creatorStats",
           "isMut": true,
           "isSigner": false
         },
@@ -77,7 +77,7 @@
           "isSigner": false
         },
         {
-          "name": "escrowAccount",
+          "name": "joinerStats",
           "isMut": true,
           "isSigner": false
         },
@@ -118,6 +118,48 @@
       ]
     },
     {
+      "name": "requestVrf",
+      "accounts": [
+        {
+          "name": "gameRoom",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "signer",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "vrfCallback",
+      "accounts": [
+        {
+          "name": "gameRoom",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "vrfOracle",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "result",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "resolveGame",
       "accounts": [
         {
@@ -127,99 +169,11 @@
         },
         {
           "name": "globalState",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "escrowAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "player1",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "player2",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "houseWallet",
-          "isMut": true,
+          "isMut": false,
           "isSigner": false
         },
         {
           "name": "resolver",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "handleTimeout",
-      "accounts": [
-        {
-          "name": "gameRoom",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "escrowAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "player1",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "player2",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "pauseProgram",
-      "accounts": [
-        {
-          "name": "globalState",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": true
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "unpauseProgram",
-      "accounts": [
-        {
-          "name": "globalState",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "authority",
           "isMut": false,
           "isSigner": true
         }
@@ -256,10 +210,6 @@
           {
             "name": "isPaused",
             "type": "bool"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }
@@ -343,15 +293,43 @@
             }
           },
           {
-            "name": "totalPot",
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlayerStats",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "publicKey"
+          },
+          {
+            "name": "totalGames",
+            "type": "u64"
+          },
+          {
+            "name": "wins",
+            "type": "u64"
+          },
+          {
+            "name": "losses",
+            "type": "u64"
+          },
+          {
+            "name": "totalWagered",
+            "type": "u64"
+          },
+          {
+            "name": "totalWinnings",
             "type": "u64"
           },
           {
             "name": "bump",
-            "type": "u8"
-          },
-          {
-            "name": "escrowBump",
             "type": "u8"
           }
         ]
@@ -470,31 +448,16 @@
     },
     {
       "code": 6010,
-      "name": "InvalidTimeoutCondition",
-      "msg": "Invalid timeout condition"
+      "name": "VrfAccountInvalid",
+      "msg": "VRF account is invalid or not authorized"
     },
     {
       "code": 6011,
-      "name": "Unauthorized",
-      "msg": "Unauthorized access"
-    },
-    {
-      "code": 6012,
-      "name": "InvalidHouseWallet",
-      "msg": "Invalid house wallet"
-    },
-    {
-      "code": 6013,
-      "name": "InsufficientEscrowBalance",
-      "msg": "Insufficient escrow balance"
-    },
-    {
-      "code": 6014,
-      "name": "ProgramPaused",
-      "msg": "Program is paused"
+      "name": "VrfTimeout",
+      "msg": "VRF request has timed out"
     }
   ],
   "metadata": {
-    "address": "EUrvqUbo2mB63prCxRGDUNa5kRwskRwjM9MkWEECgUou"
+    "address": "GGowNXivyzWKePKstFpyU18ykoaM9ygKuuzAV1mYoczn"
   }
 }
