@@ -139,19 +139,19 @@ export const useAnchorProgram = () => {
     console.log('- Room ID:', roomId);
 
     const [gameRoomPda] = deriveGameRoomPDA(program.programId, wallet.publicKey, roomId);
-    const [creatorStatsPda] = derivePlayerStatsPDA(program.programId, wallet.publicKey);
+    
+    // Derive escrow PDA (uses same seeds as game room but with "escrow" prefix)
+    const [escrowPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('escrow'),
+        wallet.publicKey.toBuffer(),
+        roomIdBN.toArrayLike(Buffer, 'le', 8),
+      ],
+      program.programId,
+    );
 
-    // Debug the actual seed generation
-    const seeds = [
-      Buffer.from('game_room'),
-      wallet.publicKey.toBuffer(),
-      roomIdBN.toArrayLike(Buffer, 'le', 8),
-    ];
-    console.log('- Seeds used for PDA:', seeds.map((s) => s.toString('hex')));
-    console.log('- Room ID as BN:', roomIdBN.toString());
-    console.log('- Room ID as Buffer (hex):', roomIdBN.toArrayLike(Buffer, 'le', 8).toString('hex'));
     console.log('- Game Room PDA:', gameRoomPda.toString());
-    console.log('- Creator Stats PDA:', creatorStatsPda.toString());
+    console.log('- Escrow PDA:', escrowPda.toString());
 
     try {
       const tx = await retryTransaction(
@@ -160,7 +160,7 @@ export const useAnchorProgram = () => {
           .createRoom(roomIdBN, betAmount)
           .accounts({
             gameRoom: gameRoomPda,
-            creatorStats: creatorStatsPda,
+            escrowAccount: escrowPda,
             creator: wallet.publicKey!,
             systemProgram: SystemProgram.programId,
           })
@@ -174,6 +174,11 @@ export const useAnchorProgram = () => {
 
       return { tx, gameRoomPda };
     } catch (error) {
+      // Handle user rejection gracefully
+      if (error instanceof Error && error.message.includes('User rejected')) {
+        console.log('Transaction cancelled by user');
+        throw new Error('Transaction cancelled');
+      }
       console.error('Error creating room:', error);
       const formattedError = new Error(formatTransactionError(error as Error));
       throw formattedError;
