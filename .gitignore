@@ -56,3 +56,30 @@ test-ledger/
 *.tar.gz
 *.zip
 .vercel
+
+# Credentials and sensitive files - NEVER COMMIT
+*_CREDENTIALS.txt
+*_WALLET_CREDENTIALS.txt
+wallet-credentials.json
+house-wallet.json
+temp-wallet.json
+*.keypair
+private-keys.txt
+
+# Solana specific
+.anchor/
+test-ledger/
+programs/*/Cargo.lock
+
+# Temporary and backup files
+*.bak
+*_backup.*
+*_original.*
+*_playground.*
+temp_*
+*.tmp
+
+# Large binary files
+solana.tar.bz2
+anchor.tar.bz2
+program-build.tar.gz
