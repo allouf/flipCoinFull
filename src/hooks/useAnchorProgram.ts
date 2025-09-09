@@ -39,7 +39,9 @@ export interface GameRoom {
   | { fulfilled?: Record<string, never> }
   | { failed?: Record<string, never> };
   winner: PublicKey | null;
+  totalPot: BN;
   bump: number;
+  escrowBump: number;
 }
 
 export interface GlobalState {
@@ -49,6 +51,7 @@ export interface GlobalState {
   totalGames: BN;
   totalVolume: BN;
   isPaused: boolean;
+  bump: number;
 }
 
 // Helper function to derive game room PDA
@@ -103,20 +106,10 @@ export const useAnchorProgram = () => {
         },
       );
 
-      // Create a properly typed IDL with address property
-      const typedIdl = {
-        ...idl,
-        address: PROGRAM_ID.toString(),
-        metadata: {
-          ...idl.metadata,
-          name: idl.name,
-          version: idl.version,
-          spec: '0.1.0',
-        },
-      } as unknown as Idl;
-
+      // Try to create program instance with minimal IDL processing
       const programInstance = new Program(
-        typedIdl,
+        idl as Idl,
+        PROGRAM_ID,
         provider,
       );
 
