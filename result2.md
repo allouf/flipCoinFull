@@ -1,3 +1,4 @@
+@allouf ➜ /workspaces/flipCoin (main) $ cat target/idl/coin_flipper.json
 {
   "version": "0.1.0",
   "name": "coin_flipper",
@@ -518,4 +519,4 @@
       "msg": "Program is paused"
     }
   ]
-}
+}@allouf ➜ /workspaces/flipCoin (main) $ 

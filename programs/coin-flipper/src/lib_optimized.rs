@@ -3,31 +3,27 @@ use anchor_lang::system_program::{Transfer, transfer};
 
 declare_id!("EUrvqUbo2mB63prCxRGDUNa5kRwskRwjM9MkWEECgUou");
 
-/// House fee in basis points (3% = 300 basis points)
-pub const HOUSE_FEE_BPS: u16 = 300;
-/// Minimum bet amount (0.01 SOL)
-pub const MIN_BET_AMOUNT: u64 = 10_000_000;
-/// Maximum bet amount (1000 SOL) - prevents excessive risk
-pub const MAX_BET_AMOUNT: u64 = 1_000_000_000_000;
-/// Maximum house fee allowed (10% = 1000 basis points)
-pub const MAX_HOUSE_FEE_BPS: u16 = 1000;
+// Constants
+pub const HOUSE_FEE_BPS: u16 = 300; // 3% = 300 basis points
+pub const MIN_BET_AMOUNT: u64 = 10_000_000; // 0.01 SOL in lamports
+pub const MAX_BET_AMOUNT: u64 = 100_000_000_000; // 100 SOL max bet for safety
+pub const SELECTION_TIMEOUT_SECONDS: i64 = 120; // 2 minutes
+pub const ROOM_EXPIRY_SECONDS: i64 = 7200; // 2 hours before room can be cleaned up
 
 #[program]
 pub mod coin_flipper {
     use super::*;
 
     /// Initialize the program with house wallet and fee configuration
-    /// Only callable once by the program authority
     pub fn initialize(ctx: Context<Initialize>, house_fee_bps: u16) -> Result<()> {
         let global_state = &mut ctx.accounts.global_state;
         
-        // Validate house fee is within reasonable bounds
+        // Validate house fee (max 10% = 1000 bps)
         require!(
-            house_fee_bps <= MAX_HOUSE_FEE_BPS,
+            house_fee_bps <= 1000,
             ErrorCode::InvalidHouseFee
         );
         
-        // Initialize global state
         global_state.authority = ctx.accounts.authority.key();
         global_state.house_wallet = ctx.accounts.house_wallet.key();
         global_state.house_fee_bps = house_fee_bps;
@@ -36,32 +32,29 @@ pub mod coin_flipper {
         global_state.is_paused = false;
         global_state.bump = ctx.bumps.global_state;
         
-        msg!("Coin Flipper initialized - House fee: {} bps, Authority: {}", 
-            house_fee_bps, global_state.authority);
+        msg!("Coin Flipper initialized - House fee: {} bps", house_fee_bps);
         
         Ok(())
     }
 
-    /// Create a new game room with specified bet amount
-    /// Escrowing the creator's funds immediately for security
+    /// Create a new game room with specified bet amount and escrow funds
     pub fn create_room(
         ctx: Context<CreateRoom>,
         room_id: u64,
         bet_amount: u64,
     ) -> Result<()> {
+        let room = &mut ctx.accounts.game_room;
         let global_state = &ctx.accounts.global_state;
+        let clock = Clock::get()?;
         
         // Check if program is paused
         require!(!global_state.is_paused, ErrorCode::ProgramPaused);
         
-        // Validate bet amount is within allowed range
+        // Validate bet amount range
         require!(
             bet_amount >= MIN_BET_AMOUNT && bet_amount <= MAX_BET_AMOUNT,
             ErrorCode::InvalidBetAmount
         );
-        
-        let room = &mut ctx.accounts.game_room;
-        let clock = Clock::get()?;
         
         // Transfer bet amount from creator to escrow PDA
         let transfer_ctx = CpiContext::new(
@@ -73,54 +66,54 @@ pub mod coin_flipper {
         );
         transfer(transfer_ctx, bet_amount)?;
         
-        // Initialize room state with secure defaults
+        // Initialize room state
         room.room_id = room_id;
         room.creator = ctx.accounts.creator.key();
         room.player_1 = ctx.accounts.creator.key();
-        room.player_2 = Pubkey::default(); // Will be set when someone joins
+        room.player_2 = Pubkey::default();
         room.bet_amount = bet_amount;
         room.status = RoomStatus::WaitingForPlayer;
         room.player_1_selection = None;
         room.player_2_selection = None;
         room.created_at = clock.unix_timestamp;
-        room.vrf_result = None;
+        room.selection_deadline = 0;
+        room.coin_result = None;
         room.winner = None;
-        room.total_pot = bet_amount; // Only creator's bet initially
+        room.total_pot = bet_amount;
         room.bump = ctx.bumps.game_room;
         room.escrow_bump = ctx.bumps.escrow_account;
         
-        msg!("Room {} created - Bet: {} lamports, Creator: {}", 
-            room_id, bet_amount, ctx.accounts.creator.key());
+        msg!("Room {} created - Bet: {} lamports", room_id, bet_amount);
         
         Ok(())
     }
 
-    /// Join an existing game room
-    /// Immediately escrows the joiner's matching bet amount
+    /// Join an existing game room and escrow matching funds
     pub fn join_room(ctx: Context<JoinRoom>) -> Result<()> {
+        let room = &mut ctx.accounts.game_room;
         let global_state = &ctx.accounts.global_state;
+        let clock = Clock::get()?;
         
         // Check if program is paused
         require!(!global_state.is_paused, ErrorCode::ProgramPaused);
         
-        let room = &mut ctx.accounts.game_room;
-        let clock = Clock::get()?;
-        
-        // Validate room is available for joining
+        // Validate room status
         require!(
             room.status == RoomStatus::WaitingForPlayer,
             ErrorCode::RoomNotAvailable
         );
         
-        // Ensure joiner is not the room creator
+        // Check if room hasn't expired
+        require!(
+            clock.unix_timestamp - room.created_at < ROOM_EXPIRY_SECONDS,
+            ErrorCode::RoomExpired
+        );
+        
+        // Validate joiner is not the creator
         require!(
             ctx.accounts.joiner.key() != room.creator,
             ErrorCode::CannotJoinOwnRoom
         );
-        
-        // Check for room expiry (optional cleanup mechanism)
-        let room_age = clock.unix_timestamp - room.created_at;
-        require!(room_age < 7200, ErrorCode::RoomExpired); // 2 hours max
         
         // Transfer matching bet amount from joiner to escrow PDA
         let transfer_ctx = CpiContext::new(
@@ -132,34 +125,40 @@ pub mod coin_flipper {
         );
         transfer(transfer_ctx, room.bet_amount)?;
         
-        // Update room state - now both players have contributed
+        // Update room state
         room.player_2 = ctx.accounts.joiner.key();
         room.status = RoomStatus::SelectionsPending;
-        room.total_pot = room.bet_amount.checked_mul(2)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        room.selection_deadline = clock.unix_timestamp + SELECTION_TIMEOUT_SECONDS;
+        room.total_pot = room.bet_amount * 2;
         
-        msg!("Player {} joined room {} - Total pot: {} lamports", 
-            ctx.accounts.joiner.key(), room.room_id, room.total_pot);
+        msg!("Player joined room {} - Total pot: {} lamports", 
+            room.room_id, room.total_pot);
         
         Ok(())
     }
 
     /// Make heads or tails selection
-    /// Both players must select before game can be resolved
     pub fn make_selection(
         ctx: Context<MakeSelection>,
         selection: CoinSide,
     ) -> Result<()> {
         let room = &mut ctx.accounts.game_room;
+        let clock = Clock::get()?;
         let player = ctx.accounts.player.key();
         
-        // Validate room is in selection phase
+        // Validate room status
         require!(
             room.status == RoomStatus::SelectionsPending,
             ErrorCode::InvalidRoomStatus
         );
         
-        // Record player's selection
+        // Check if within time limit
+        require!(
+            clock.unix_timestamp <= room.selection_deadline,
+            ErrorCode::SelectionTimeout
+        );
+        
+        // Record selection based on player
         if player == room.player_1 {
             require!(
                 room.player_1_selection.is_none(),
@@ -178,79 +177,79 @@ pub mod coin_flipper {
             return Err(ErrorCode::NotInRoom.into());
         }
         
-        // If both players have selected, move to resolving state
+        // Check if both players have selected - if so, resolve immediately
         if room.player_1_selection.is_some() && room.player_2_selection.is_some() {
             room.status = RoomStatus::Resolving;
-            msg!("Both players selected - Room {} ready for resolution", room.room_id);
+            msg!("Both players selected - Ready to resolve");
         }
         
         Ok(())
     }
 
-    /// Resolve the game and distribute payouts
-    /// Uses secure pseudo-random generation and handles all edge cases
+    /// Resolve game and distribute payouts
     pub fn resolve_game(ctx: Context<ResolveGame>) -> Result<()> {
         let room = &mut ctx.accounts.game_room;
-        let global_state = &ctx.accounts.global_state;
+        let global_state = &mut ctx.accounts.global_state;
         let clock = Clock::get()?;
         
-        // Validate game can be resolved
+        // Validate room status
         require!(
             room.status == RoomStatus::Resolving,
             ErrorCode::InvalidRoomStatus
         );
         
-        // Ensure both players made selections
-        let (p1_selection, p2_selection) = match (room.player_1_selection, room.player_2_selection) {
-            (Some(p1), Some(p2)) => (p1, p2),
-            _ => return Err(ErrorCode::MissingSelections.into()),
+        // Validate both players have made selections
+        require!(
+            room.player_1_selection.is_some() && room.player_2_selection.is_some(),
+            ErrorCode::MissingSelections
+        );
+        
+        // Generate coin flip result using improved pseudo-randomness
+        // This combines multiple unpredictable sources
+        let entropy_sources = [
+            clock.unix_timestamp as u64,
+            clock.slot,
+            room.room_id,
+            room.player_1.to_bytes()[0] as u64,
+            room.player_2.to_bytes()[0] as u64,
+        ];
+        
+        let mut combined_entropy = 0u64;
+        for (i, source) in entropy_sources.iter().enumerate() {
+            combined_entropy ^= source.wrapping_mul(7919 + i as u64);
+        }
+        
+        let coin_result = if combined_entropy % 2 == 0 { 
+            CoinSide::Heads 
+        } else { 
+            CoinSide::Tails 
         };
         
-        // Generate coin flip result using multiple entropy sources
-        let entropy = clock.unix_timestamp as u64
-            ^ clock.slot
-            ^ clock.epoch
-            ^ room.room_id;
+        // Store result
+        room.coin_result = Some(coin_result);
         
-        // Use a more sophisticated PRNG approach
-        let mut seed = entropy;
-        seed ^= seed >> 33;
-        seed = seed.wrapping_mul(0xff51afd7ed558ccd);
-        seed ^= seed >> 33;
-        seed = seed.wrapping_mul(0xc4ceb9fe1a85ec53);
-        seed ^= seed >> 33;
-        
-        let coin_result = if seed % 2 == 0 { CoinSide::Heads } else { CoinSide::Tails };
-        
-        // Store randomness result for transparency
-        let mut vrf_bytes = [0u8; 32];
-        vrf_bytes[..8].copy_from_slice(&entropy.to_le_bytes());
-        vrf_bytes[8..16].copy_from_slice(&seed.to_le_bytes());
-        room.vrf_result = Some(vrf_bytes);
-        
-        // Determine the winner
-        let (winner, winner_account) = if p1_selection == coin_result {
-            (Some(room.player_1), &ctx.accounts.player_1)
-        } else if p2_selection == coin_result {
-            (Some(room.player_2), &ctx.accounts.player_2)
+        // Determine winner based on selections
+        let (winner, winner_account) = if let (Some(p1_selection), Some(p2_selection)) = 
+            (room.player_1_selection, room.player_2_selection) {
+            
+            if p1_selection == coin_result {
+                (Some(room.player_1), &ctx.accounts.player_1)
+            } else if p2_selection == coin_result {
+                (Some(room.player_2), &ctx.accounts.player_2)
+            } else {
+                // This should never happen as one player must be correct
+                return Err(ErrorCode::InvalidGameState.into());
+            }
         } else {
-            // This should never happen as one player must be correct
-            return Err(ErrorCode::InvalidGameState.into());
+            return Err(ErrorCode::MissingSelections.into());
         };
         
-        // Calculate payouts with overflow protection
+        // Calculate payouts
         let total_pot = room.total_pot;
-        let house_fee = (total_pot as u128)
-            .checked_mul(global_state.house_fee_bps as u128)
-            .ok_or(ErrorCode::ArithmeticOverflow)?
-            .checked_div(10000)
-            .ok_or(ErrorCode::ArithmeticOverflow)? as u64;
+        let house_fee = (total_pot as u128 * global_state.house_fee_bps as u128 / 10000) as u64;
+        let winner_payout = total_pot.saturating_sub(house_fee);
         
-        let winner_payout = total_pot
-            .checked_sub(house_fee)
-            .ok_or(ErrorCode::ArithmeticUnderflow)?;
-        
-        // Create escrow PDA seeds for signing transfers
+        // Create escrow PDA seeds for signing
         let room_id_bytes = room.room_id.to_le_bytes();
         let creator_key = room.creator;
         let escrow_seeds = &[
@@ -261,7 +260,7 @@ pub mod coin_flipper {
         ];
         let escrow_signer = &[&escrow_seeds[..]];
         
-        // Transfer winner payout
+        // Transfer winner payout from escrow to winner
         if winner_payout > 0 {
             let winner_transfer_ctx = CpiContext::new_with_signer(
                 ctx.accounts.system_program.to_account_info(),
@@ -274,7 +273,7 @@ pub mod coin_flipper {
             transfer(winner_transfer_ctx, winner_payout)?;
         }
         
-        // Transfer house fee if applicable
+        // Transfer house fee from escrow to house wallet
         if house_fee > 0 {
             let house_transfer_ctx = CpiContext::new_with_signer(
                 ctx.accounts.system_program.to_account_info(),
@@ -287,49 +286,30 @@ pub mod coin_flipper {
             transfer(house_transfer_ctx, house_fee)?;
         }
         
-        // Update room and global state
+        // Update room state and global statistics
         room.winner = winner;
         room.status = RoomStatus::Completed;
         
-        // Update statistics atomically
-        let global_state = &mut ctx.accounts.global_state;
+        // Update global stats
         global_state.total_games = global_state.total_games.saturating_add(1);
         global_state.total_volume = global_state.total_volume.saturating_add(total_pot);
         
-        msg!(
-            "Game resolved - Room: {}, Winner: {}, Coin: {:?}, Payout: {}, Fee: {}",
-            room.room_id,
-            winner.unwrap(),
-            coin_result,
-            winner_payout,
-            house_fee
-        );
+        msg!("Game resolved: Room {} - Coin: {:?} - Winner: {} - Payout: {} - Fee: {}", 
+            room.room_id, coin_result, winner.unwrap(), winner_payout, house_fee);
         
         Ok(())
     }
 
-    /// Handle timeout scenarios by refunding both players
-    /// Can be called by anyone after the timeout period
+    /// Handle timeout scenarios - refund players if game doesn't complete in time
     pub fn handle_timeout(ctx: Context<HandleTimeout>) -> Result<()> {
         let room = &mut ctx.accounts.game_room;
         let clock = Clock::get()?;
         
-        // Validate timeout conditions
-        let timeout_threshold = match room.status {
-            RoomStatus::WaitingForPlayer => {
-                // Room expires after 2 hours if no one joins
-                room.created_at + 7200
-            },
-            RoomStatus::SelectionsPending => {
-                // Give players reasonable time to make selections (10 minutes)
-                room.created_at + 600
-            },
-            _ => return Err(ErrorCode::InvalidTimeoutCondition.into()),
-        };
-        
+        // Check if timeout conditions are met
         require!(
-            clock.unix_timestamp > timeout_threshold,
-            ErrorCode::TimeoutNotReached
+            room.status == RoomStatus::SelectionsPending && 
+            clock.unix_timestamp > room.selection_deadline,
+            ErrorCode::InvalidTimeoutCondition
         );
         
         // Create escrow PDA seeds for signing
@@ -343,8 +323,10 @@ pub mod coin_flipper {
         ];
         let escrow_signer = &[&escrow_seeds[..]];
         
-        // Refund creator (player 1) their bet
+        // Refund both players their original bets
         let refund_amount = room.bet_amount;
+        
+        // Refund player 1
         let p1_transfer_ctx = CpiContext::new_with_signer(
             ctx.accounts.system_program.to_account_info(),
             Transfer {
@@ -368,142 +350,101 @@ pub mod coin_flipper {
             transfer(p2_transfer_ctx, refund_amount)?;
         }
         
-        // Mark room as cancelled
+        // Update room status
         room.status = RoomStatus::Cancelled;
         
-        msg!("Room {} timed out - All players refunded", room.room_id);
+        msg!("Room {} timed out - Both players refunded {} lamports each", 
+            room.room_id, refund_amount);
         
         Ok(())
     }
 
-    /// Emergency pause function - only callable by program authority
+    /// Clean up expired room to reclaim rent (can be called by anyone after expiry)
+    pub fn cleanup_expired_room(ctx: Context<CleanupRoom>) -> Result<()> {
+        let room = &ctx.accounts.game_room;
+        let clock = Clock::get()?;
+        
+        // Only allow cleanup of completed/cancelled rooms older than expiry time
+        require!(
+            matches!(room.status, RoomStatus::Completed | RoomStatus::Cancelled) &&
+            clock.unix_timestamp - room.created_at > ROOM_EXPIRY_SECONDS,
+            ErrorCode::CannotCleanupRoom
+        );
+        
+        msg!("Room {} cleaned up - Rent reclaimed", room.room_id);
+        
+        Ok(())
+    }
+
+    /// Emergency pause function (only authority can call)
     pub fn pause_program(ctx: Context<AdminAction>) -> Result<()> {
         let global_state = &mut ctx.accounts.global_state;
         
-        // Verify caller is the program authority
         require!(
             ctx.accounts.authority.key() == global_state.authority,
             ErrorCode::Unauthorized
         );
         
         global_state.is_paused = true;
-        msg!("Program paused by authority: {}", ctx.accounts.authority.key());
+        msg!("Program paused by authority");
         
         Ok(())
     }
 
-    /// Emergency unpause function - only callable by program authority
+    /// Emergency unpause function (only authority can call)
     pub fn unpause_program(ctx: Context<AdminAction>) -> Result<()> {
         let global_state = &mut ctx.accounts.global_state;
         
-        // Verify caller is the program authority
         require!(
             ctx.accounts.authority.key() == global_state.authority,
             ErrorCode::Unauthorized
         );
         
         global_state.is_paused = false;
-        msg!("Program unpaused by authority: {}", ctx.accounts.authority.key());
-        
-        Ok(())
-    }
-
-    /// Update house fee - only callable by program authority
-    pub fn update_house_fee(ctx: Context<AdminAction>, new_fee_bps: u16) -> Result<()> {
-        let global_state = &mut ctx.accounts.global_state;
-        
-        // Verify caller is the program authority
-        require!(
-            ctx.accounts.authority.key() == global_state.authority,
-            ErrorCode::Unauthorized
-        );
-        
-        // Validate new fee is reasonable
-        require!(
-            new_fee_bps <= MAX_HOUSE_FEE_BPS,
-            ErrorCode::InvalidHouseFee
-        );
-        
-        let old_fee = global_state.house_fee_bps;
-        global_state.house_fee_bps = new_fee_bps;
-        
-        msg!("House fee updated from {} bps to {} bps", old_fee, new_fee_bps);
+        msg!("Program unpaused by authority");
         
         Ok(())
     }
 }
 
-// ============================================================================
-// Account Structures
-// ============================================================================
-
-/// Global program state - stores program configuration and statistics
+// Account structures
 #[account]
 pub struct GlobalState {
-    /// Program authority (can pause/unpause, update fees)
-    pub authority: Pubkey,        // 32 bytes
-    /// House wallet for fee collection
-    pub house_wallet: Pubkey,     // 32 bytes
-    /// House fee in basis points (e.g., 300 = 3%)
-    pub house_fee_bps: u16,       // 2 bytes
-    /// Total number of completed games
-    pub total_games: u64,         // 8 bytes
-    /// Total volume of all bets combined
-    pub total_volume: u64,        // 8 bytes
-    /// Emergency pause flag
-    pub is_paused: bool,          // 1 byte
-    /// PDA bump seed
-    pub bump: u8,                 // 1 byte
-} // Total: 84 bytes + 8 (discriminator) = 92 bytes
+    pub authority: Pubkey,        // 32
+    pub house_wallet: Pubkey,     // 32
+    pub house_fee_bps: u16,       // 2
+    pub total_games: u64,         // 8
+    pub total_volume: u64,        // 8
+    pub is_paused: bool,          // 1
+    pub bump: u8,                 // 1
+} // Total: 84 bytes + 8 (discriminator) = 92
 
-/// Individual game room state
 #[account]
 pub struct GameRoom {
-    /// Unique room identifier
-    pub room_id: u64,                           // 8 bytes
-    /// Room creator (also player_1)
-    pub creator: Pubkey,                        // 32 bytes
-    /// First player (same as creator)
-    pub player_1: Pubkey,                       // 32 bytes
-    /// Second player (joins the room)
-    pub player_2: Pubkey,                       // 32 bytes
-    /// Bet amount in lamports
-    pub bet_amount: u64,                        // 8 bytes
-    /// Current room status
-    pub status: RoomStatus,                     // 1 byte
-    /// Player 1's coin selection
-    pub player_1_selection: Option<CoinSide>,   // 2 bytes (1 + 1)
-    /// Player 2's coin selection
-    pub player_2_selection: Option<CoinSide>,   // 2 bytes (1 + 1)
-    /// Room creation timestamp
-    pub created_at: i64,                        // 8 bytes
-    /// VRF/randomness result for transparency
-    pub vrf_result: Option<[u8; 32]>,          // 33 bytes (1 + 32)
-    /// Game winner (if completed)
-    pub winner: Option<Pubkey>,                 // 33 bytes (1 + 32)
-    /// Total pot size (both players' bets)
-    pub total_pot: u64,                         // 8 bytes
-    /// PDA bump seed for game room
-    pub bump: u8,                               // 1 byte
-    /// PDA bump seed for escrow account
-    pub escrow_bump: u8,                        // 1 byte
-} // Total: 199 bytes + 8 (discriminator) = 207 bytes
+    pub room_id: u64,                           // 8
+    pub creator: Pubkey,                        // 32
+    pub player_1: Pubkey,                       // 32
+    pub player_2: Pubkey,                       // 32
+    pub bet_amount: u64,                        // 8
+    pub status: RoomStatus,                     // 1
+    pub player_1_selection: Option<CoinSide>,   // 2
+    pub player_2_selection: Option<CoinSide>,   // 2
+    pub created_at: i64,                        // 8
+    pub selection_deadline: i64,                // 8 - Only timestamp, not a timer!
+    pub coin_result: Option<CoinSide>,          // 2 - Store final coin flip result
+    pub winner: Option<Pubkey>,                 // 33
+    pub total_pot: u64,                         // 8
+    pub bump: u8,                               // 1
+    pub escrow_bump: u8,                        // 1
+} // Total: 178 bytes + 8 (discriminator) = 186 (more efficient!)
 
-// ============================================================================
 // Enums
-// ============================================================================
-
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq)]
 pub enum RoomStatus {
-    /// Waiting for a second player to join
     WaitingForPlayer,
-    /// Both players joined, waiting for selections
     SelectionsPending,
-    /// Both players selected, ready to resolve
     Resolving,
-    /// Game completed successfully
     Completed,
-    /// Game cancelled (timeout or other reason)
     Cancelled,
 }
 
@@ -513,16 +454,13 @@ pub enum CoinSide {
     Tails,
 }
 
-// ============================================================================
-// Context Structures
-// ============================================================================
-
+// Context structs
 #[derive(Accounts)]
 pub struct Initialize<'info> {
     #[account(
         init,
         payer = authority,
-        space = 8 + 84, // discriminator + GlobalState
+        space = 8 + 84,
         seeds = [b"global_state"],
         bump
     )]
@@ -531,7 +469,7 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
     
-    /// CHECK: House wallet for fee collection - validated by authority
+    /// CHECK: House wallet for fee collection
     pub house_wallet: AccountInfo<'info>,
     
     pub system_program: Program<'info, System>,
@@ -543,25 +481,25 @@ pub struct CreateRoom<'info> {
     #[account(
         init,
         payer = creator,
-        space = 8 + 199, // discriminator + GameRoom
+        space = 8 + 178, // Updated size
         seeds = [b"game_room", creator.key().as_ref(), &room_id.to_le_bytes()],
         bump
     )]
     pub game_room: Account<'info, GameRoom>,
-    
-    /// CHECK: Escrow PDA to hold game funds securely
-    #[account(
-        mut,
-        seeds = [b"escrow", creator.key().as_ref(), &room_id.to_le_bytes()],
-        bump
-    )]
-    pub escrow_account: AccountInfo<'info>,
     
     #[account(
         seeds = [b"global_state"],
         bump = global_state.bump
     )]
     pub global_state: Account<'info, GlobalState>,
+    
+    /// CHECK: Escrow PDA to hold game funds
+    #[account(
+        mut,
+        seeds = [b"escrow", creator.key().as_ref(), &room_id.to_le_bytes()],
+        bump
+    )]
+    pub escrow_account: AccountInfo<'info>,
     
     #[account(mut)]
     pub creator: Signer<'info>,
@@ -577,19 +515,19 @@ pub struct JoinRoom<'info> {
     )]
     pub game_room: Account<'info, GameRoom>,
     
-    /// CHECK: Escrow PDA - seeds validated
+    #[account(
+        seeds = [b"global_state"],
+        bump = global_state.bump
+    )]
+    pub global_state: Account<'info, GlobalState>,
+    
+    /// CHECK: Escrow PDA to hold game funds
     #[account(
         mut,
         seeds = [b"escrow", game_room.creator.as_ref(), &game_room.room_id.to_le_bytes()],
         bump = game_room.escrow_bump
     )]
     pub escrow_account: AccountInfo<'info>,
-    
-    #[account(
-        seeds = [b"global_state"],
-        bump = global_state.bump
-    )]
-    pub global_state: Account<'info, GlobalState>,
     
     #[account(mut)]
     pub joiner: Signer<'info>,
@@ -601,8 +539,7 @@ pub struct JoinRoom<'info> {
 pub struct MakeSelection<'info> {
     #[account(
         mut,
-        constraint = game_room.status == RoomStatus::SelectionsPending @ ErrorCode::InvalidRoomStatus,
-        constraint = player.key() == game_room.player_1 || player.key() == game_room.player_2 @ ErrorCode::NotInRoom
+        constraint = game_room.status == RoomStatus::SelectionsPending @ ErrorCode::InvalidRoomStatus
     )]
     pub game_room: Account<'info, GameRoom>,
     
@@ -624,7 +561,7 @@ pub struct ResolveGame<'info> {
     )]
     pub global_state: Account<'info, GlobalState>,
     
-    /// CHECK: Escrow PDA holding game funds
+    /// CHECK: Escrow PDA holding the game funds
     #[account(
         mut,
         seeds = [b"escrow", game_room.creator.as_ref(), &game_room.room_id.to_le_bytes()],
@@ -632,18 +569,12 @@ pub struct ResolveGame<'info> {
     )]
     pub escrow_account: AccountInfo<'info>,
     
-    /// CHECK: Player 1 for payout
-    #[account(
-        mut,
-        constraint = player_1.key() == game_room.player_1 @ ErrorCode::InvalidPlayer
-    )]
+    /// CHECK: Player 1 account for potential payout
+    #[account(mut)]
     pub player_1: AccountInfo<'info>,
     
-    /// CHECK: Player 2 for payout
-    #[account(
-        mut,
-        constraint = player_2.key() == game_room.player_2 @ ErrorCode::InvalidPlayer
-    )]
+    /// CHECK: Player 2 account for potential payout
+    #[account(mut)]
     pub player_2: AccountInfo<'info>,
     
     /// CHECK: House wallet for fee collection
@@ -653,16 +584,18 @@ pub struct ResolveGame<'info> {
     )]
     pub house_wallet: AccountInfo<'info>,
     
-    pub resolver: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
 pub struct HandleTimeout<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = game_room.status == RoomStatus::SelectionsPending @ ErrorCode::InvalidRoomStatus
+    )]
     pub game_room: Account<'info, GameRoom>,
     
-    /// CHECK: Escrow PDA holding funds
+    /// CHECK: Escrow PDA holding the game funds
     #[account(
         mut,
         seeds = [b"escrow", game_room.creator.as_ref(), &game_room.room_id.to_le_bytes()],
@@ -670,21 +603,28 @@ pub struct HandleTimeout<'info> {
     )]
     pub escrow_account: AccountInfo<'info>,
     
-    /// CHECK: Player 1 for refund
-    #[account(
-        mut,
-        constraint = player_1.key() == game_room.player_1 @ ErrorCode::InvalidPlayer
-    )]
+    /// CHECK: Player 1 account for refund
+    #[account(mut)]
     pub player_1: AccountInfo<'info>,
     
-    /// CHECK: Player 2 for refund
-    #[account(
-        mut,
-        constraint = player_2.key() == game_room.player_2 @ ErrorCode::InvalidPlayer
-    )]
+    /// CHECK: Player 2 account for refund
+    #[account(mut)]
     pub player_2: AccountInfo<'info>,
     
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CleanupRoom<'info> {
+    #[account(
+        mut,
+        close = rent_collector
+    )]
+    pub game_room: Account<'info, GameRoom>,
+    
+    /// CHECK: Anyone can collect rent after room expires
+    #[account(mut)]
+    pub rent_collector: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
@@ -699,20 +639,20 @@ pub struct AdminAction<'info> {
     pub authority: Signer<'info>,
 }
 
-// ============================================================================
-// Error Codes
-// ============================================================================
-
+// Error codes
 #[error_code]
 pub enum ErrorCode {
-    #[msg("House fee cannot exceed maximum allowed percentage")]
+    #[msg("House fee cannot exceed 10%")]
     InvalidHouseFee,
     
-    #[msg("Bet amount is outside allowed range")]
+    #[msg("Bet amount is invalid (too small or too large)")]
     InvalidBetAmount,
     
     #[msg("Room is not available for joining")]
     RoomNotAvailable,
+    
+    #[msg("Room has expired")]
+    RoomExpired,
     
     #[msg("Cannot join your own room")]
     CannotJoinOwnRoom,
@@ -720,42 +660,33 @@ pub enum ErrorCode {
     #[msg("Invalid room status for this operation")]
     InvalidRoomStatus,
     
+    #[msg("Selection timeout exceeded")]
+    SelectionTimeout,
+    
     #[msg("Player has already made a selection")]
     AlreadySelected,
     
-    #[msg("Player is not participating in this room")]
+    #[msg("Player is not in this room")]
     NotInRoom,
     
-    #[msg("Invalid game state detected")]
+    #[msg("Invalid game state")]
     InvalidGameState,
     
-    #[msg("Both players must make selections before resolving")]
+    #[msg("Missing player selections")]
     MissingSelections,
     
-    #[msg("Timeout condition not met")]
+    #[msg("Invalid timeout condition")]
     InvalidTimeoutCondition,
     
-    #[msg("Timeout period has not been reached")]
-    TimeoutNotReached,
-    
-    #[msg("Unauthorized access - invalid authority")]
+    #[msg("Unauthorized access")]
     Unauthorized,
     
-    #[msg("Invalid house wallet provided")]
+    #[msg("Invalid house wallet")]
     InvalidHouseWallet,
     
-    #[msg("Invalid player account")]
-    InvalidPlayer,
-    
-    #[msg("Program is currently paused")]
+    #[msg("Program is paused")]
     ProgramPaused,
     
-    #[msg("Room has expired and cannot be joined")]
-    RoomExpired,
-    
-    #[msg("Arithmetic overflow occurred")]
-    ArithmeticOverflow,
-    
-    #[msg("Arithmetic underflow occurred")]
-    ArithmeticUnderflow,
+    #[msg("Cannot cleanup room yet")]
+    CannotCleanupRoom,
 }

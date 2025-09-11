@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { WalletProvider } from './providers/WalletProvider';
 import { WalletConnectButton } from './components/WalletConnectButton';
 import { NetworkSelector } from './components/NetworkSelector';
 import { CoinFlip } from './components/CoinFlip';
 import { BlockchainGame } from './components/BlockchainGame';
+import { logProgramIdValidation } from './utils/programIdValidator';
 import './styles/wallet-adapter-overrides.css';
 
 const HomePage = () => {
@@ -104,17 +105,24 @@ const HomePage = () => {
   );
 };
 
-const App: React.FC = () => (
-  <WalletProvider>
-    <Router>
-      <div className="App">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          {/* Additional routes to be added */}
-        </Routes>
-      </div>
-    </Router>
-  </WalletProvider>
-);
+const App: React.FC = () => {
+  useEffect(() => {
+    // Validate Program ID configuration on app startup
+    logProgramIdValidation();
+  }, []);
+
+  return (
+    <WalletProvider>
+      <Router>
+        <div className="App">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            {/* Additional routes to be added */}
+          </Routes>
+        </div>
+      </Router>
+    </WalletProvider>
+  );
+};
 
 export default App;

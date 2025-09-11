@@ -35,8 +35,10 @@ export const findGameRoomPDA = async (
     try {
       const [pda] = deriveGameRoomPDA(program.programId, creator, roomId);
 
-      // Try to fetch the account to see if it exists
-      const account = await program.account.gameRoom.fetch(pda);
+      // Try to fetch the account to see if it exists - manually fetch and decode
+      const accountInfo = await program.provider.connection.getAccountInfo(pda);
+      if (!accountInfo) continue;
+      const account = program.coder.accounts.decode('GameRoom', accountInfo.data);
 
       if (account) {
         return { pda, creator };

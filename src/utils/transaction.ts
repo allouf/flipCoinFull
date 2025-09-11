@@ -47,8 +47,13 @@ export async function retryTransaction(
       if (
         lastError.message.includes('User rejected')
         || lastError.message.includes('insufficient funds')
+        || lastError.message.includes('insufficient lamports')
         || lastError.message.includes('Invalid program')
       ) {
+        // For user rejection, throw a more user-friendly error without the stack trace
+        if (lastError.message.includes('User rejected')) {
+          throw new Error('Transaction was cancelled by user.');
+        }
         throw lastError;
       }
 
@@ -61,8 +66,8 @@ export async function retryTransaction(
       const delay = retryDelay * 2 ** attempt;
       await new Promise((resolve) => setTimeout(resolve, delay));
 
-      // Log retry attempt in development
-      if (process.env.NODE_ENV === 'development') {
+      // Log retry attempt in development (but not for user rejection)
+      if (process.env.NODE_ENV === 'development' && !lastError.message.includes('User rejected')) {
         console.warn(`Transaction attempt ${attempt + 1} failed, retrying in ${delay}ms:`, lastError.message);
       }
     }
@@ -96,6 +101,18 @@ export function isRetryableError(error: Error): boolean {
  */
 export function formatTransactionError(error: Error): string {
   const message = error.message.toLowerCase();
+
+  // Check for insufficient lamports error with specific amounts
+  if (message.includes('insufficient lamports')) {
+    const lamportsMatch = message.match(/insufficient lamports (\d+), need (\d+)/);
+    if (lamportsMatch) {
+      const available = parseInt(lamportsMatch[1], 10) / 1_000_000_000; // Convert to SOL
+      const needed = parseInt(lamportsMatch[2], 10) / 1_000_000_000;
+      const shortage = needed - available;
+      return `Insufficient SOL balance. You have ${available.toFixed(3)} SOL but need ${needed.toFixed(3)} SOL. Please add ${shortage.toFixed(3)} more SOL to your wallet.`;
+    }
+    return 'Insufficient SOL balance to cover the bet amount and transaction fees.';
+  }
 
   if (message.includes('blockhash not found')) {
     return 'Network connection issue. Please check your internet connection and try again.';
