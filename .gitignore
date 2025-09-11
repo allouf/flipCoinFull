@@ -1,0 +1,53 @@
+# Dependencies and build artifacts
+node_modules/
+target/
+.anchor/
+
+# Large files
+*.tar.bz2
+*.tar.gz
+solana.tar.bz2
+
+# Credentials - NEVER COMMIT
+*_CREDENTIALS.txt
+*WALLET*.txt
+*.keypair
+private-keys.txt
+wallet-credentials.json
+house-wallet.json
+
+# Build artifacts
+Cargo.lock
+package-lock.json
+
+# Backup files
+*_backup.*
+*_original.*
+*_playground.*
+
+# OS files
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+*.log
+
+# Build artifacts (NEVER COMMIT)
+target/
+programs/*/target/
+.anchor/
+**/.anchor/
+**/target/
+
+# Dependencies
+node_modules/
+
+# Large files  
+*.tar.bz2
+*.tar.gz
+
+# Credentials
+*_CREDENTIALS.txt
+*WALLET*.txt
+*.keypair
+
