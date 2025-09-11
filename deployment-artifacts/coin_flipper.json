@@ -1,0 +1,618 @@
+{
+  "version": "0.1.0",
+  "name": "coin_flipper",
+  "instructions": [
+    {
+      "name": "initialize",
+      "docs": [
+        "Initialize the program with house wallet and fee configuration",
+        "Only callable once by the program authority"
+      ],
+      "accounts": [
+        {
+          "name": "globalState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "houseWallet",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "houseFeeBps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "createRoom",
+      "docs": [
+        "Create a new game room with specified bet amount",
+        "Escrowing the creator's funds immediately for security"
+      ],
+      "accounts": [
+        {
+          "name": "gameRoom",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "escrowAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "globalState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "creator",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "roomId",
+          "type": "u64"
+        },
+        {
+          "name": "betAmount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "joinRoom",
+      "docs": [
+        "Join an existing game room",
+        "Immediately escrows the joiner's matching bet amount"
+      ],
+      "accounts": [
+        {
+          "name": "gameRoom",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "escrowAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "globalState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "joiner",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "makeSelection",
+      "docs": [
+        "Make heads or tails selection",
+        "Both players must select before game can be resolved"
+      ],
+      "accounts": [
+        {
+          "name": "gameRoom",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "player",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "selection",
+          "type": {
+            "defined": "CoinSide"
+          }
+        }
+      ]
+    },
+    {
+      "name": "resolveGame",
+      "docs": [
+        "Resolve the game and distribute payouts",
+        "Uses secure pseudo-random generation and handles all edge cases"
+      ],
+      "accounts": [
+        {
+          "name": "gameRoom",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "globalState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "escrowAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "player1",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "player2",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "houseWallet",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "resolver",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "handleTimeout",
+      "docs": [
+        "Handle timeout scenarios by refunding both players",
+        "Can be called by anyone after the timeout period"
+      ],
+      "accounts": [
+        {
+          "name": "gameRoom",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "escrowAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "player1",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "player2",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "pauseProgram",
+      "docs": [
+        "Emergency pause function - only callable by program authority"
+      ],
+      "accounts": [
+        {
+          "name": "globalState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "unpauseProgram",
+      "docs": [
+        "Emergency unpause function - only callable by program authority"
+      ],
+      "accounts": [
+        {
+          "name": "globalState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateHouseFee",
+      "docs": [
+        "Update house fee - only callable by program authority"
+      ],
+      "accounts": [
+        {
+          "name": "globalState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "newFeeBps",
+          "type": "u16"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "GlobalState",
+      "docs": [
+        "Global program state - stores program configuration and statistics"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "Program authority (can pause/unpause, update fees)"
+            ],
+            "type": "publicKey"
+          },
+          {
+            "name": "houseWallet",
+            "docs": [
+              "House wallet for fee collection"
+            ],
+            "type": "publicKey"
+          },
+          {
+            "name": "houseFeeBps",
+            "docs": [
+              "House fee in basis points (e.g., 300 = 3%)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "totalGames",
+            "docs": [
+              "Total number of completed games"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "totalVolume",
+            "docs": [
+              "Total volume of all bets combined"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "isPaused",
+            "docs": [
+              "Emergency pause flag"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GameRoom",
+      "docs": [
+        "Individual game room state"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "roomId",
+            "docs": [
+              "Unique room identifier"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "creator",
+            "docs": [
+              "Room creator (also player_1)"
+            ],
+            "type": "publicKey"
+          },
+          {
+            "name": "player1",
+            "docs": [
+              "First player (same as creator)"
+            ],
+            "type": "publicKey"
+          },
+          {
+            "name": "player2",
+            "docs": [
+              "Second player (joins the room)"
+            ],
+            "type": "publicKey"
+          },
+          {
+            "name": "betAmount",
+            "docs": [
+              "Bet amount in lamports"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Current room status"
+            ],
+            "type": {
+              "defined": "RoomStatus"
+            }
+          },
+          {
+            "name": "player1Selection",
+            "docs": [
+              "Player 1's coin selection"
+            ],
+            "type": {
+              "option": {
+                "defined": "CoinSide"
+              }
+            }
+          },
+          {
+            "name": "player2Selection",
+            "docs": [
+              "Player 2's coin selection"
+            ],
+            "type": {
+              "option": {
+                "defined": "CoinSide"
+              }
+            }
+          },
+          {
+            "name": "createdAt",
+            "docs": [
+              "Room creation timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "vrfResult",
+            "docs": [
+              "VRF/randomness result for transparency"
+            ],
+            "type": {
+              "option": {
+                "array": [
+                  "u8",
+                  32
+                ]
+              }
+            }
+          },
+          {
+            "name": "winner",
+            "docs": [
+              "Game winner (if completed)"
+            ],
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "totalPot",
+            "docs": [
+              "Total pot size (both players' bets)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed for game room"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "escrowBump",
+            "docs": [
+              "PDA bump seed for escrow account"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "RoomStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "WaitingForPlayer"
+          },
+          {
+            "name": "SelectionsPending"
+          },
+          {
+            "name": "Resolving"
+          },
+          {
+            "name": "Completed"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CoinSide",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Heads"
+          },
+          {
+            "name": "Tails"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidHouseFee",
+      "msg": "House fee cannot exceed maximum allowed percentage"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidBetAmount",
+      "msg": "Bet amount is outside allowed range"
+    },
+    {
+      "code": 6002,
+      "name": "RoomNotAvailable",
+      "msg": "Room is not available for joining"
+    },
+    {
+      "code": 6003,
+      "name": "CannotJoinOwnRoom",
+      "msg": "Cannot join your own room"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidRoomStatus",
+      "msg": "Invalid room status for this operation"
+    },
+    {
+      "code": 6005,
+      "name": "AlreadySelected",
+      "msg": "Player has already made a selection"
+    },
+    {
+      "code": 6006,
+      "name": "NotInRoom",
+      "msg": "Player is not participating in this room"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidGameState",
+      "msg": "Invalid game state detected"
+    },
+    {
+      "code": 6008,
+      "name": "MissingSelections",
+      "msg": "Both players must make selections before resolving"
+    },
+    {
+      "code": 6009,
+      "name": "InvalidTimeoutCondition",
+      "msg": "Timeout condition not met"
+    },
+    {
+      "code": 6010,
+      "name": "TimeoutNotReached",
+      "msg": "Timeout period has not been reached"
+    },
+    {
+      "code": 6011,
+      "name": "Unauthorized",
+      "msg": "Unauthorized access - invalid authority"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidHouseWallet",
+      "msg": "Invalid house wallet provided"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidPlayer",
+      "msg": "Invalid player account"
+    },
+    {
+      "code": 6014,
+      "name": "ProgramPaused",
+      "msg": "Program is currently paused"
+    },
+    {
+      "code": 6015,
+      "name": "RoomExpired",
+      "msg": "Room has expired and cannot be joined"
+    },
+    {
+      "code": 6016,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow occurred"
+    },
+    {
+      "code": 6017,
+      "name": "ArithmeticUnderflow",
+      "msg": "Arithmetic underflow occurred"
+    }
+  ],
+  "metadata": {
+    "address": "DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp"
+  }
+}
