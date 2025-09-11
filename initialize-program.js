@@ -22,7 +22,7 @@
     }
 
     const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });     
-    const programId = new PublicKey("GNyb71eMrPVKcfTnxQjzVJu2bfMQdmwNWFfuN3ripe47");
+    const programId = new PublicKey("9p1xq5Lj8iK31oRWaHog2Xnfz5ktgvWMBAJ7ru8CqD2j");
 
     // Load IDL
     const idl = JSON.parse(fs.readFileSync('./target/idl/coin_flipper.json', 'utf8'));
