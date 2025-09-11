@@ -314,7 +314,7 @@ After successful deployment, update your frontend with:
 
 ```javascript
 // Update your program ID
-export const PROGRAM_ID = new PublicKey("EUrvqUbo2mB63prCxRGDUNa5kRwskRwjM9MkWEECgUou");
+export const PROGRAM_ID = new PublicKey("DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp");
 
 // Copy the generated IDL
 // The IDL file is available at: target/idl/coin_flipper.json

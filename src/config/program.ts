@@ -8,14 +8,14 @@
 import { PublicKey } from '@solana/web3.js';
 
 // Deployed Program ID on Solana Devnet (from Codespaces)
-export const PROGRAM_ID = new PublicKey('EUrvqUbo2mB63prCxRGDUNa5kRwskRwjM9MkWEECgUou');
+export const PROGRAM_ID = new PublicKey('DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp');
 
 // Program configuration
 export const PROGRAM_CONFIG = {
   programId: PROGRAM_ID,
   houseFeePercentage: 3, // 3% house fee
   minBetAmount: 0.01, // Minimum bet in SOL
-  selectionTimeoutSeconds: 30, // Timeout for player selection
+  selectionTimeoutSeconds: 120, // Timeout for player selection (moved from smart contract)
 };
 
 // Network endpoints - Using reliable public endpoints
