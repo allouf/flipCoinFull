@@ -58,7 +58,6 @@ export const BlockchainGame: React.FC = () => {
     rejoinRoom,
     makeSelection,
     resolveGameManually,
-    checkForExistingGame,
     resetGame,
     leaveGame,
     handleGameTimeout,
@@ -80,7 +79,7 @@ export const BlockchainGame: React.FC = () => {
   const [diagnosisResult, setDiagnosisResult] = useState<any>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
-  
+
   // Track abandoned room for display (using the direct value from hook)
   // const abandonedRoomId = getAbandonedRoomId(); // Removed - using abandonedRoomId from hook
 
@@ -359,7 +358,7 @@ export const BlockchainGame: React.FC = () => {
           {gameState.winner && (
             <p className="text-lg font-bold text-primary mt-2">{gameState.winner}</p>
           )}
-          
+
           {/* Game Recovery Tools */}
           {(gameState.gameStatus === 'selecting' || gameState.gameStatus === 'resolving') && (
             <div className="mt-4 pt-3 border-t border-base-300">
@@ -378,7 +377,7 @@ export const BlockchainGame: React.FC = () => {
                   )}
                   Refresh State
                 </button>
-                
+
                 <button
                   type="button"
                   onClick={handleDiagnoseGame}
@@ -389,7 +388,7 @@ export const BlockchainGame: React.FC = () => {
                   🔍 Diagnose
                 </button>
               </div>
-              
+
               {showDiagnostics && diagnosisResult && (
                 <div className="mt-3 p-3 bg-info/10 border border-info/20 rounded-lg">
                   <div className="flex justify-between items-start mb-2">
@@ -402,13 +401,13 @@ export const BlockchainGame: React.FC = () => {
                       ✕
                     </button>
                   </div>
-                  
+
                   <p className="text-sm mb-2">
                     <strong>Status:</strong>
                     {' '}
                     {diagnosisResult.status}
                   </p>
-                  
+
                   {diagnosisResult.issues.length > 0 && (
                     <div className="mb-2">
                       <strong className="text-warning text-sm">Issues Found:</strong>
@@ -422,7 +421,7 @@ export const BlockchainGame: React.FC = () => {
                       </ul>
                     </div>
                   )}
-                  
+
                   {diagnosisResult.recommendations.length > 0 && (
                     <div>
                       <strong className="text-success text-sm">Recommendations:</strong>
@@ -827,17 +826,17 @@ export const BlockchainGame: React.FC = () => {
             <div className="loading loading-spinner loading-lg text-primary mb-4" />
             <h3 className="text-xl font-bold text-primary mb-2">🎲 Game Resolution Phase</h3>
           </div>
-          
+
           {gameState.opponentSelection ? (
             <div className="mb-6 p-4 bg-success/10 border-2 border-success/30 rounded-lg">
               <div className="flex items-center justify-center mb-3">
-                <div className="w-3 h-3 bg-success rounded-full mr-2 animate-pulse"></div>
+                <div className="w-3 h-3 bg-success rounded-full mr-2 animate-pulse" />
                 <p className="text-success font-bold">✅ Ready for Resolution!</p>
               </div>
               <p className="text-sm text-base-content/80 mb-3">
                 Both players have made their selections. The game is ready to be resolved.
               </p>
-              
+
               {/* Why manual resolution explanation */}
               <div className="bg-info/10 border border-info/30 rounded-lg p-3 text-left">
                 <p className="text-info font-semibold text-sm mb-2">📊 Why You Need to Click "Resolve Game":</p>
@@ -852,7 +851,7 @@ export const BlockchainGame: React.FC = () => {
           ) : (
             <div className="mb-6 p-4 bg-warning/10 border-2 border-warning/30 rounded-lg">
               <div className="flex items-center justify-center mb-3">
-                <div className="w-3 h-3 bg-warning rounded-full mr-2 animate-pulse"></div>
+                <div className="w-3 h-3 bg-warning rounded-full mr-2 animate-pulse" />
                 <p className="text-warning font-bold">⏳ Waiting for Game State Update</p>
               </div>
               <p className="text-sm text-base-content/70">
@@ -925,7 +924,7 @@ export const BlockchainGame: React.FC = () => {
               <span className="mr-2">🎲</span>
               {loading ? 'Resolving...' : 'Resolve Game'}
             </button>
-            
+
             {/* Timeout option - only show if we can check timeout */}
             <button
               type="button"
@@ -1007,14 +1006,14 @@ export const BlockchainGame: React.FC = () => {
               <p className="text-xs text-base-content/70 mb-4">
                 Use these controls if you're stuck in any game state and need to reset.
               </p>
-              
+
               <div className="space-y-2">
                 {/* Force Abandon - Immediately mark game as abandoned and reset UI */}
                 <button
                   type="button"
                   onClick={() => {
                     if (window.confirm(
-                      'EMERGENCY: This will mark the current game as abandoned and reset your UI to idle state. Your SOL may remain locked on-chain until properly resolved. Continue?'
+                      'EMERGENCY: This will mark the current game as abandoned and reset your UI to idle state. Your SOL may remain locked on-chain until properly resolved. Continue?',
                     )) {
                       forceAbandonGame();
                     }
@@ -1025,13 +1024,13 @@ export const BlockchainGame: React.FC = () => {
                   <span className="mr-2">🆘</span>
                   Force Abandon Current Game
                 </button>
-                
+
                 {/* Start Fresh - Complete reset */}
                 <button
                   type="button"
                   onClick={() => {
                     if (window.confirm(
-                      'FRESH START: This will completely reset all game state and clear all abandoned room memory. You can then create new games normally. Continue?'
+                      'FRESH START: This will completely reset all game state and clear all abandoned room memory. You can then create new games normally. Continue?',
                     )) {
                       startFresh();
                     }
@@ -1042,7 +1041,7 @@ export const BlockchainGame: React.FC = () => {
                   <span className="mr-2">🌱</span>
                   Complete Fresh Start
                 </button>
-                
+
                 <div className="text-xs text-base-content/60 bg-base-200 p-2 rounded mt-2">
                   <p className="font-semibold text-warning">⚠️ Important:</p>
                   <ul className="list-disc list-inside space-y-1 mt-1">

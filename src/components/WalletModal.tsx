@@ -13,16 +13,25 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   onClose,
 }) => {
   const {
-    wallets, select, connect, connecting,
+    wallets, select, connect, connecting, connected,
   } = useWallet();
   // const { setVisible } = useWalletModal();
+  
+  const [isConnecting, setIsConnecting] = React.useState(false);
+
+  // Close modal when connected
+  useEffect(() => {
+    if (connected && visible) {
+      onClose();
+    }
+  }, [connected, visible, onClose]);
 
   // Handle escape key
   const handleEscape = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && !isConnecting) {
       onClose();
     }
-  }, [onClose]);
+  }, [onClose, isConnecting]);
 
   useEffect(() => {
     if (visible) {
@@ -36,13 +45,38 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   }, [visible, handleEscape]);
 
   const handleWalletSelect = async (walletName: WalletName) => {
+    if (isConnecting || connecting) {
+      console.warn('Connection already in progress');
+      return;
+    }
+
+    setIsConnecting(true);
     try {
+      console.log('Selecting wallet:', walletName);
       select(walletName);
+      
+      // Small delay to let wallet selection complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.log('Connecting to wallet...');
       await connect();
-      onClose();
+      
+      console.log('Successfully connected!');
+      // Modal will close via useEffect when connected becomes true
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error('Failed to connect to wallet:', error);
+      
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMessage.includes('already pending')) {
+        console.log('Connection request already in progress, please wait...');
+      } else if (errorMessage.includes('User rejected')) {
+        console.log('Connection was cancelled by user');
+      } else {
+        console.log('Failed to connect:', errorMessage);
+      }
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -111,10 +145,12 @@ export const WalletModal: React.FC<WalletModalProps> = ({
 
         {/* Wallet Options */}
         <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
-          {connecting && (
+          {(connecting || isConnecting) && (
             <div className="text-center py-4">
               <div className="loading loading-spinner loading-md text-primary" />
-              <p className="text-sm text-base-content/60 mt-2">Connecting...</p>
+              <p className="text-sm text-base-content/60 mt-2">
+                {isConnecting ? 'Connecting to wallet...' : 'Connecting...'}
+              </p>
             </div>
           )}
 
@@ -123,13 +159,13 @@ export const WalletModal: React.FC<WalletModalProps> = ({
               key={wallet.adapter.name}
               type="button"
               onClick={() => handleWalletSelect(wallet.adapter.name)}
-              disabled={connecting}
+              disabled={connecting || isConnecting}
               className={`
                 w-full p-4 rounded-lg border border-base-300/50 hover:border-primary/50 
                 hover:bg-base-300/30 transition-all duration-200 text-left
                 disabled:opacity-50 disabled:cursor-not-allowed
                 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
-                ${connecting ? 'cursor-not-allowed' : 'cursor-pointer'}
+                ${(connecting || isConnecting) ? 'cursor-not-allowed' : 'cursor-pointer'}
                 group
               `}
             >

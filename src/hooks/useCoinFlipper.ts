@@ -106,7 +106,7 @@ export const useCoinFlipper = () => {
       } else if (room.status && 'selectionsPending' in room.status) {
         // Check if both players have made selections
         const bothSelected = room.player1Selection && room.player2Selection;
-        
+
         if (bothSelected) {
           // Both players selected but room still in SelectionsPending - should be ready for resolution
           gameStatus = 'resolving';
@@ -114,7 +114,7 @@ export const useCoinFlipper = () => {
         } else {
           gameStatus = 'selecting';
         }
-        
+
         // Check if current player has already made selection
         if (isPlayer1 && room.player1Selection) {
           playerSelection = 'heads' in room.player1Selection ? 'heads' : 'tails';
@@ -204,7 +204,7 @@ export const useCoinFlipper = () => {
         selecting: 600000, // 10 minutes
         resolving: 300000, // 5 minutes
       };
-      
+
       const maxAge = maxStateAge[gameState.gameStatus as keyof typeof maxStateAge];
       if (maxAge && stateAge > maxAge) {
         console.log(`⚠️ Game has been stuck in ${gameState.gameStatus} state for ${Math.floor(stateAge / 60000)} minutes (Room: ${gameState.roomId})`);
@@ -228,9 +228,9 @@ export const useCoinFlipper = () => {
 
       // Progressive refresh intervals: more frequent initially, then slower
       const getRefreshInterval = (attempt: number) => {
-        if (attempt < 3) return 15000;  // First 3 attempts every 15 seconds
-        if (attempt < 6) return 30000;  // Next 3 attempts every 30 seconds
-        return 60000;                   // After that, every minute
+        if (attempt < 3) return 15000; // First 3 attempts every 15 seconds
+        if (attempt < 6) return 30000; // Next 3 attempts every 30 seconds
+        return 60000; // After that, every minute
       };
 
       const doBackgroundRefresh = async () => {
@@ -249,7 +249,7 @@ export const useCoinFlipper = () => {
           try {
             console.log(`🔄 Background refresh attempt ${refreshAttempts + 1}/${maxRefreshAttempts}`);
             await updateGameState(gameState.roomId, false);
-            
+
             // Check if game has progressed to completed state
             const room = await fetchGameRoom(gameState.roomId, false);
             if (room && room.status && 'completed' in room.status) {
@@ -260,10 +260,9 @@ export const useCoinFlipper = () => {
               }
               return;
             }
-            
           } catch (err) {
             console.warn(`⚠️ Background refresh attempt ${refreshAttempts + 1} failed:`, err);
-            
+
             // After several failed attempts, provide user guidance
             if (refreshAttempts > 6) {
               setError('Game resolution is taking longer than expected. You may need to manually resolve the game or handle timeout.');
@@ -272,12 +271,12 @@ export const useCoinFlipper = () => {
         }
 
         refreshAttempts++;
-        
+
         // Stop background refresh after max attempts and provide clear guidance
         if (refreshAttempts >= maxRefreshAttempts) {
           console.log('⏰ Background refresh timeout - providing user guidance');
           setError('Game has been stuck in resolving state. Please try: 1) "Resolve Game Manually", 2) "Handle Timeout", or 3) "Force Abandon" in emergency controls.');
-          
+
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
             pollingIntervalRef.current = null;
@@ -420,7 +419,7 @@ export const useCoinFlipper = () => {
         // Check if user is actually a participant
         const isPlayer1 = room.player1.toString() === publicKey.toString();
         const isPlayer2 = room.player2 && room.player2.toString() === publicKey.toString();
-        
+
         if (!isPlayer1 && !isPlayer2) {
           throw new Error(`Cannot rejoin room ${roomId}: You are not a participant in this game`);
         }
@@ -430,7 +429,7 @@ export const useCoinFlipper = () => {
           'selectionsPending' in room.status
           || 'resolving' in room.status
         );
-        
+
         if (!isGameInProgress) {
           let statusName = 'Unknown';
           if (room.status) {
@@ -448,11 +447,11 @@ export const useCoinFlipper = () => {
         // Check timeout status
         if (room.selectionDeadline) {
           const now = Math.floor(Date.now() / 1000);
-        const deadline = room.selectionDeadline.toNumber
-          ? room.selectionDeadline.toNumber()
-          : room.selectionDeadline;
+          const deadline = room.selectionDeadline.toNumber
+            ? room.selectionDeadline.toNumber()
+            : room.selectionDeadline;
           const timeoutThreshold = 300; // 5 minutes grace period after deadline
-          
+
           if (now > deadline + timeoutThreshold) {
             throw new Error(`Cannot rejoin room ${roomId}: Game has been timed out for too long. Use "Handle Timeout" to claim refunds`);
           }
@@ -663,21 +662,21 @@ export const useCoinFlipper = () => {
           try {
             console.log('🔄 Post-selection state refresh for room:', gameState.roomId);
             await updateGameState(gameState.roomId, true); // User-initiated after their action
-            
+
             // Check if both players have now selected
             const room = await fetchGameRoom(gameState.roomId, true);
             if (room && room.player1Selection && room.player2Selection) {
               console.log('🎯 Both players have selected - game ready for resolution');
-              
+
               // Update local state to reflect readiness for resolution
-              setGameState(prev => ({
+              setGameState((prev) => ({
                 ...prev,
                 gameStatus: 'resolving',
                 opponentSelection: true,
                 lastUpdated: Date.now(),
-                isStale: false
+                isStale: false,
               }));
-              
+
               // Clear any existing errors since game is progressing normally
               setError(null);
             }
@@ -712,7 +711,7 @@ export const useCoinFlipper = () => {
         || (gameState.gameStatus === 'selecting' && options.isTimeout)
         || (gameState.gameStatus === 'waiting' && error)
       );
-      
+
       if (isStuckGame) {
         abandonedRoomRef.current = gameState.roomId;
         console.log('🚫 Marking room as abandoned due to stuck state:', gameState.roomId);
@@ -795,13 +794,13 @@ export const useCoinFlipper = () => {
     try {
       console.log('🔄 Handling timeout for room:', roomId);
       const { tx } = await handleTimeout(roomId);
-      
+
       // Clear abandoned room since timeout was successful
       if (abandonedRoomRef.current === roomId) {
         abandonedRoomRef.current = null;
         console.log('✅ Cleared abandoned room after successful timeout');
       }
-      
+
       // Reset game state after timeout handling
       setGameState((prev) => ({
         ...prev,
@@ -855,7 +854,7 @@ export const useCoinFlipper = () => {
     // CRITICAL FIX: Never automatically rejoin games to prevent stuck states
     // Users should have full control over which games they want to participate in
     console.log('🔍 Checking for existing games (manual detection only - no auto-rejoin)');
-    
+
     try {
       // Only scan for existing games to warn the user, but don't auto-rejoin
       const allRooms = await fetchAllGameRooms({ userInitiated: false, priority: 'low' });
@@ -863,12 +862,12 @@ export const useCoinFlipper = () => {
         const roomIdNumber = room.roomId.toNumber();
         const isPlayer1 = room.player1.toString() === publicKey.toString();
         const isPlayer2 = room.player2 && room.player2.toString() === publicKey.toString();
-        
+
         // Skip abandoned rooms
         if (abandonedRoomRef.current === roomIdNumber) {
           return false;
         }
-        
+
         return (isPlayer1 || isPlayer2)
           && (room.status && ('selectionsPending' in room.status || 'resolving' in room.status))
           && !(room.status && 'cancelled' in room.status);
@@ -910,9 +909,7 @@ export const useCoinFlipper = () => {
   );
 
   // Get the abandoned room ID (for UI display)
-  const getAbandonedRoomId = useCallback(() => {
-    return abandonedRoomRef.current;
-  }, []);
+  const getAbandonedRoomId = useCallback(() => abandonedRoomRef.current, []);
 
   // Clear abandoned room memory (allow handling timeout for stuck games)
   const clearAbandonedRoom = useCallback(() => {
@@ -928,22 +925,22 @@ export const useCoinFlipper = () => {
   // EMERGENCY: Force abandon current game and reset to idle state
   const forceAbandonGame = useCallback(() => {
     console.log('🆘 EMERGENCY: Force abandoning current game');
-    
+
     // Mark current room as abandoned
     if (gameState.roomId) {
       abandonedRoomRef.current = gameState.roomId;
       console.log('🚨 Marked room as abandoned:', gameState.roomId);
     }
-    
+
     // Set user wants to leave to prevent any auto-rejoins
     userWantsToLeaveRef.current = true;
-    
+
     // Clear all intervals/polling
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
-    
+
     // Reset game state to completely idle
     setGameState({
       roomId: null,
@@ -958,28 +955,28 @@ export const useCoinFlipper = () => {
       lastUpdated: Date.now(),
       isStale: false,
     });
-    
+
     // Clear any errors
     setError(null);
     setLoading(false);
-    
+
     console.log('✅ Game state forcefully reset to idle. User can now create new games.');
   }, [gameState.roomId]);
-  
+
   // Start fresh - completely reset everything and enable new game creation
   const startFresh = useCallback(() => {
     console.log('🌱 Starting completely fresh - resetting all game state');
-    
+
     // Clear all references
     abandonedRoomRef.current = null;
     userWantsToLeaveRef.current = false;
-    
+
     // Clear intervals
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
-    
+
     // Reset to clean idle state
     setGameState({
       roomId: null,
@@ -994,10 +991,10 @@ export const useCoinFlipper = () => {
       lastUpdated: Date.now(),
       isStale: false,
     });
-    
+
     setError(null);
     setLoading(false);
-    
+
     console.log('✅ Complete fresh start - ready for new games');
   }, []);
 
@@ -1010,11 +1007,11 @@ export const useCoinFlipper = () => {
     }
 
     console.log('⏰ Handling timeout for abandoned room:', roomId);
-    
+
     // Temporarily clear the abandoned flag to allow the timeout operation
     const tempAbandonedRoom = abandonedRoomRef.current;
     abandonedRoomRef.current = null;
-    
+
     try {
       const result = await handleGameTimeout(roomId);
       console.log('✅ Successfully handled timeout for abandoned room:', roomId);
@@ -1043,7 +1040,7 @@ export const useCoinFlipper = () => {
 
     try {
       console.log('🎲 User-initiated VRF resolution for room:', roomId);
-      
+
       // Check if room is timed out first
       const isTimedOut = await isRoomTimedOut(roomId);
       if (isTimedOut) {
@@ -1053,7 +1050,7 @@ export const useCoinFlipper = () => {
 
       const { tx } = await resolveGame(roomId);
       console.log('✅ VRF resolution successful:', getExplorerUrl(tx));
-      
+
       // Clear abandoned room since resolution was successful
       if (abandonedRoomRef.current === roomId) {
         abandonedRoomRef.current = null;
@@ -1123,7 +1120,7 @@ export const useCoinFlipper = () => {
     try {
       // Clear all caches to get fresh data
       clearRpcCache();
-      
+
       // Force refresh the room data
       const room = await forceRefreshGameRoom(gameState.roomId);
       if (!room) {
@@ -1132,13 +1129,13 @@ export const useCoinFlipper = () => {
 
       // Update game state with fresh data
       await updateGameState(gameState.roomId, true);
-      
+
       // Clear abandoned status if recovery successful
       if (abandonedRoomRef.current === gameState.roomId) {
         abandonedRoomRef.current = null;
         console.log('✅ Cleared abandoned status after successful recovery');
       }
-      
+
       console.log('✅ Game state recovery completed');
       return true;
     } catch (err) {
@@ -1159,7 +1156,7 @@ export const useCoinFlipper = () => {
 
     const issues: string[] = [];
     const recommendations: string[] = [];
-    
+
     try {
       const room = await fetchGameRoom(gameState.roomId, true);
       if (!room) {
@@ -1171,10 +1168,10 @@ export const useCoinFlipper = () => {
       // Check for timeout issues
       if (room.selectionDeadline) {
         const now = Math.floor(Date.now() / 1000);
-        const deadline = room.selectionDeadline.toNumber 
-          ? room.selectionDeadline.toNumber() 
+        const deadline = room.selectionDeadline.toNumber
+          ? room.selectionDeadline.toNumber()
           : room.selectionDeadline;
-        
+
         if (now > deadline) {
           issues.push(`Game timed out ${Math.floor((now - deadline) / 60)} minutes ago`);
           recommendations.push('Use "Handle Timeout" to claim refunds');
@@ -1196,17 +1193,17 @@ export const useCoinFlipper = () => {
       if (publicKey) {
         const isPlayer1 = room.player1.toString() === publicKey.toString();
         const isPlayer2 = room.player2 && room.player2.toString() === publicKey.toString();
-        
+
         if (!isPlayer1 && !isPlayer2) {
           issues.push('You are not a participant in this room');
           recommendations.push('Leave this game and join a different one');
         }
       }
 
-      const statusName = room.status 
-        ? Object.keys(room.status)[0] 
+      const statusName = room.status
+        ? Object.keys(room.status)[0]
         : 'unknown';
-      
+
       return {
         status: statusName,
         issues,
@@ -1224,7 +1221,7 @@ export const useCoinFlipper = () => {
     } catch (err) {
       issues.push(`Diagnosis failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       recommendations.push('Try refreshing the page or reconnecting wallet');
-      
+
       return { status: 'Diagnosis Error', issues, recommendations };
     }
   }, [gameState.roomId, fetchGameRoom, publicKey]);

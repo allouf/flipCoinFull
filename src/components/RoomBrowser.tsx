@@ -21,7 +21,9 @@ interface FilterOptions {
 
 const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) => {
   const { publicKey } = useWallet();
-  const { fetchAllGameRooms, handleTimeout, cancelRoom, isProgramReady } = useAnchorProgram();
+  const {
+    fetchAllGameRooms, handleTimeout, cancelRoom, isProgramReady,
+  } = useAnchorProgram();
   const [rooms, setRooms] = useState<GameRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [manualLoading, setManualLoading] = useState(false);
@@ -127,7 +129,7 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
       const newFailureCount = consecutiveFailures + 1;
       setConsecutiveFailures(newFailureCount);
       setLastFailureTime(Date.now());
-      
+
       if (newFailureCount >= MAX_FAILURES) {
         console.log('Circuit breaker opened due to consecutive failures');
         setIsCircuitOpen(true);
@@ -206,17 +208,11 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
     return isPlayer1 || isPlayer2;
   };
 
-  const isAvailableRoom = (room: GameRoom) => {
-    return room.status && 'waitingForPlayer' in room.status && !isMyRoom(room);
-  };
+  const isAvailableRoom = (room: GameRoom) => room.status && 'waitingForPlayer' in room.status && !isMyRoom(room);
 
-  const isActiveRoom = (room: GameRoom) => {
-    return room.status && ('selectionsPending' in room.status || 'resolving' in room.status);
-  };
+  const isActiveRoom = (room: GameRoom) => room.status && ('selectionsPending' in room.status || 'resolving' in room.status);
 
-  const isHistoryRoom = (room: GameRoom) => {
-    return room.status && ('completed' in room.status || 'cancelled' in room.status);
-  };
+  const isHistoryRoom = (room: GameRoom) => room.status && ('completed' in room.status || 'cancelled' in room.status);
 
   // Filter and sort rooms based on current tab and filters
   const filteredAndSortedRooms = useMemo(() => {
@@ -364,9 +360,9 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
   const handleClaimRefund = async (roomId: number) => {
     try {
       setError(null);
-      
+
       // Find the room to determine the appropriate refund method
-      const room = rooms.find(r => r.roomId?.toNumber() === roomId);
+      const room = rooms.find((r) => r.roomId?.toNumber() === roomId);
       if (!room) {
         throw new Error(`Room ${roomId} not found`);
       }
@@ -374,7 +370,7 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
       // Check if this is a single-player room (waiting for player) or two-player room
       const isWaitingForPlayer = room.status && 'waitingForPlayer' in room.status;
       const isSelectionsPending = room.status && 'selectionsPending' in room.status;
-      
+
       if (isWaitingForPlayer) {
         // Single-player room - try cancelRoom with improved error handling
         console.log(`Attempting to cancel single-player room ${roomId}`);
@@ -393,16 +389,16 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
       } else {
         throw new Error('Room is not in a refundable state. Only rooms waiting for players or with pending selections can be refunded.');
       }
-      
+
       // Reload rooms after successful refund
       await loadRooms();
     } catch (err) {
       console.error('Refund error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to claim refund';
-      
+
       // Check if this is the single-player room timeout message
-      if (errorMessage.includes('Single-player room cancellation:') || 
-          errorMessage.includes('automatically refunded after')) {
+      if (errorMessage.includes('Single-player room cancellation:')
+          || errorMessage.includes('automatically refunded after')) {
         // This is informational, not really an error - format it better
         setError(`ℹ️ ${errorMessage}`);
       } else {
@@ -456,7 +452,8 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
         </div>
         <div className="flex items-center space-x-3">
           <div className="text-xs text-gray-500">
-            Auto-refresh every 45s{isCircuitOpen ? ' (paused)' : ''}
+            Auto-refresh every 45s
+            {isCircuitOpen ? ' (paused)' : ''}
           </div>
           <button
             type="button"
@@ -483,13 +480,13 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
             </div>
             <div className="flex-1">
               <div className="font-medium text-red-800 mb-1">
-                {error.includes('429') || error.includes('busy') ? 'Network Traffic High' :
-                  error.includes('timeout') || error.includes('slow')
+                {error.includes('429') || error.includes('busy') ? 'Network Traffic High'
+                  : error.includes('timeout') || error.includes('slow')
                     ? 'Connection Issue'
                     : 'Loading Error'}
               </div>
               <p className="text-red-700 text-sm mb-3">{error}</p>
-              
+
               {(error.includes('429') || error.includes('busy')) && (
                 <div className="text-xs text-red-600 bg-red-100 p-2 rounded mb-3">
                   <strong>What&apos;s happening:</strong>
@@ -501,7 +498,7 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
                   Wait a moment and try again, or enter a room ID directly above.
                 </div>
               )}
-              
+
               {error.includes('Circuit breaker') && (
                 <div className="text-xs text-red-600 bg-red-100 p-2 rounded mb-3">
                   <strong>Automatic updates paused</strong>
@@ -510,7 +507,7 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
                   directly.
                 </div>
               )}
-              
+
               <div className="flex space-x-2">
                 <button
                   type="button"
@@ -743,9 +740,9 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">What you can do:</p>
                   <div className="text-sm text-gray-600">
-                  <p>&bull; Create a new room and invite others to play</p>
-                  <p>&bull; Ask a friend to share their Room ID with you</p>
-                  <p>&bull; Check back later for new public rooms</p>
+                    <p>&bull; Create a new room and invite others to play</p>
+                    <p>&bull; Ask a friend to share their Room ID with you</p>
+                    <p>&bull; Check back later for new public rooms</p>
                   </div>
                 </div>
               </>
@@ -853,7 +850,7 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
                 ))}
               </tbody>
             </table>
-            
+
             {/* Pagination Controls */}
             {totalPages > 1 && (
               <div className="mt-6 flex items-center justify-between">
@@ -881,14 +878,13 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
                   >
                     Previous
                   </button>
-                  
+
                   {/* Page Numbers */}
                   {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter((pageNum) => {
+                    .filter((pageNum) =>
                       // Show first page, last page, current page, and pages around current
-                      return pageNum === 1 || pageNum === totalPages
-                        || Math.abs(pageNum - currentPage) <= 1;
-                    })
+                      pageNum === 1 || pageNum === totalPages
+                        || Math.abs(pageNum - currentPage) <= 1)
                     .map((pageNum, index, array) => {
                       // Add ellipsis if there's a gap
                       const showEllipsis = index > 0 && pageNum - array[index - 1] > 1;
@@ -911,7 +907,7 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
                         </React.Fragment>
                       );
                     })}
-                  
+
                   <button
                     type="button"
                     onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}

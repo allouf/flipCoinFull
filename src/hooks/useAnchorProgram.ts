@@ -383,44 +383,43 @@ export const useAnchorProgram = () => {
 
       gameRoomPda = targetRoom.publicKey;
       const roomData = targetRoom.account as any;
-      
+
       // Check if room is in correct state for making selections
       const roomStatus = roomData.status;
       console.log('Current room status before selection:', getRoomStatusString(roomStatus));
-      
+
       if (!roomStatus || !roomStatus.selectionsPending) {
         const statusName = getRoomStatusString(roomStatus);
-        
+
         // Clear cache for this room since we have stale data
         console.log('⚠️ Room state mismatch detected, clearing cache for room:', roomId);
         rpcManager.clearCache();
-        
+
         // If game is already resolving, both players have selected - show appropriate message
         if (roomStatus && roomStatus.resolving) {
           throw new Error(`Cannot make selection: Both players have already selected. Game is now resolving. Current status: ${statusName}`);
         }
-        
+
         // For other invalid states
         throw new Error(`Cannot make selection: Room status must be 'SelectionsPending' but is currently '${statusName}'. This room may not be ready for selections.`);
       }
-      
+
       // Check if this player has already made a selection
       const isPlayer1 = roomData.player1 && wallet.publicKey && roomData.player1.equals(wallet.publicKey);
       const isPlayer2 = roomData.player2 && wallet.publicKey && roomData.player2.equals(wallet.publicKey);
-      
+
       if (isPlayer1 && roomData.player1Selection !== null) {
         throw new Error('Cannot make selection: You have already made your selection.');
       }
-      
+
       if (isPlayer2 && roomData.player2Selection !== null) {
         throw new Error('Cannot make selection: You have already made your selection.');
       }
-      
     } catch (error) {
       // If this is already one of our formatted error messages, just re-throw it
       if (error instanceof Error && (
-        error.message.includes('Cannot make selection:') ||
-        error.message.includes('Room ${roomId} not found')
+        error.message.includes('Cannot make selection:')
+        || error.message.includes('Room ${roomId} not found')
       )) {
         throw error;
       }
@@ -508,8 +507,7 @@ export const useAnchorProgram = () => {
     });
   }, [program]);
 
-  const fetchGameRoom = useCallback(
-    async (roomId: number, userInitiated = false): Promise<GameRoom | null> => {
+  const fetchGameRoom = useCallback(async (roomId: number, userInitiated = false): Promise<GameRoom | null> => {
     if (!program) {
       throw new Error('Program not initialized');
     }
@@ -538,8 +536,7 @@ export const useAnchorProgram = () => {
       console.error('Error fetching game room:', error);
       return null;
     }
-    }, [program, fetchAllGameRooms],
-  );
+  }, [program, fetchAllGameRooms]);
 
   const resolveGame = useCallback(async (roomId: number) => {
     if (!program || !wallet.publicKey) {
@@ -556,25 +553,25 @@ export const useAnchorProgram = () => {
         commitment: 'confirmed',
         encoding: 'base64',
       });
-      
+
       console.log(`🔍 Found ${accounts.length} program accounts to scan`);
-      
+
       const allRooms = accounts.map((account) => {
         try {
           // Validate account data exists and has minimum length
           if (!account.account.data || account.account.data.length < 8) {
             return null;
           }
-          
+
           // Use correct IDL account name for discriminator derivation
           const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
-          
+
           // Validate decoded data has required fields
           if (!decoded.roomId || !decoded.status) {
-            console.warn(`⚠️ Decoded account missing required fields:`, account.pubkey.toString());
+            console.warn('⚠️ Decoded account missing required fields:', account.pubkey.toString());
             return null;
           }
-          
+
           return { publicKey: account.pubkey, account: decoded };
         } catch (err) {
           // Log decode failures for debugging
@@ -595,7 +592,7 @@ export const useAnchorProgram = () => {
 
       gameRoomPda = targetRoom.publicKey;
       const roomData = targetRoom.account as any;
-      
+
       // Additional validation of room data integrity
       if (!roomData.player1 || !roomData.player2) {
         throw new Error(`Room ${roomId} has invalid player data`);
@@ -616,7 +613,7 @@ export const useAnchorProgram = () => {
       const isSelectionsPending = roomData.status && roomData.status.selectionsPending;
       const isWaitingForPlayer = roomData.status && roomData.status.waitingForPlayer;
       const bothSelected = roomData.player1Selection && roomData.player2Selection;
-      
+
       console.log('📊 Resolution state check:', {
         isResolving,
         isSelectionsPending,
@@ -625,15 +622,15 @@ export const useAnchorProgram = () => {
         p1Selection: roomData.player1Selection ? 'Made' : 'Pending',
         p2Selection: roomData.player2Selection ? 'Made' : 'Pending',
       });
-      
+
       // Multiple valid scenarios for resolution:
       // 1. Room is already in Resolving state (normal flow)
       // 2. Room is in SelectionsPending with both selections made (recovery flow)
       // 3. Allow resolution even if smart contract state is inconsistent but selections exist
-      const canResolve = isResolving 
+      const canResolve = isResolving
         || (isSelectionsPending && bothSelected)
         || (bothSelected); // Force resolve if both players selected regardless of state
-      
+
       if (!canResolve) {
         const statusStr = getRoomStatusString(roomData.status);
         if (isSelectionsPending && !bothSelected) {
@@ -646,9 +643,8 @@ export const useAnchorProgram = () => {
         }
         throw new Error(`Cannot resolve game: Invalid room state '${statusStr}' and selections not complete`);
       }
-      
+
       console.log('✅ Room ready for resolution');
-      
 
       // Derive PDAs and get account addresses
       const roomIdBN = roomData.roomId as BN;
@@ -690,19 +686,19 @@ export const useAnchorProgram = () => {
 
       // Pre-transaction validation - verify accounts exist and are accessible
       console.log('🔍 Pre-transaction validation...');
-      
+
       // Verify GameRoom account is still accessible
       const gameRoomAccountInfo = await conn.getAccountInfo(gameRoomPda);
       if (!gameRoomAccountInfo) {
         throw new Error(`GameRoom account ${gameRoomPda.toString()} no longer exists`);
       }
-      
+
       // Verify GlobalState account is accessible
       const globalStateAccountCheck = await conn.getAccountInfo(globalStatePda);
       if (!globalStateAccountCheck) {
         throw new Error(`GlobalState account ${globalStatePda.toString()} not found`);
       }
-      
+
       console.log('✅ All accounts validated, proceeding with resolution transaction');
 
       const tx = await retryTransaction(
@@ -731,26 +727,26 @@ export const useAnchorProgram = () => {
       return { tx, gameRoomPda };
     } catch (error) {
       console.error('❌ Error resolving game:', error);
-      
+
       // Enhanced error handling with specific guidance
       const errorMessage = (error as Error).message || 'Unknown error';
-      
+
       if (errorMessage.includes('AccountDidNotSerialize') || errorMessage.includes('3004')) {
         throw new Error(`Game account data is corrupted or incompatible. This usually happens when the on-chain program structure differs from the frontend. Try "Handle Timeout" instead, or contact support. Technical details: ${errorMessage}`);
       }
-      
+
       if (errorMessage.includes('MissingSelections') || errorMessage.includes('6008')) {
         throw new Error('Cannot resolve: Both players must make selections before the game can be resolved. Check that both players have selected heads or tails.');
       }
-      
+
       if (errorMessage.includes('InvalidGameState') || errorMessage.includes('6007')) {
         throw new Error('Game state is invalid for resolution. Try refreshing the game state or use "Handle Timeout" if the game is stuck.');
       }
-      
+
       if (errorMessage.includes('InvalidRoomStatus') || errorMessage.includes('6004')) {
         throw new Error('Room status does not allow resolution. The game may already be completed or not ready for resolution.');
       }
-      
+
       // Generic error with actionable advice
       throw new Error(`Resolution failed: ${errorMessage}. You can try: 1) Refresh game state, 2) Use "Handle Timeout" if game is stuck, 3) Use "Force Abandon" in emergency controls.`);
     }
@@ -900,7 +896,7 @@ export const useAnchorProgram = () => {
       const player2 = roomData.player2 as PublicKey;
       const roomStatus = roomData.status;
       const roomCreator = roomData.creator as PublicKey;
-      
+
       // Check if player2 is actually set (not the default public key)
       const defaultPubkey = new PublicKey('11111111111111111111111111111111');
       const isPlayer2Valid = player2 && !player2.equals(defaultPubkey);
@@ -946,42 +942,42 @@ export const useAnchorProgram = () => {
       // 1. Wait for timeout (2 hours) then use handleTimeout
       // 2. Immediate cancellation with manual refund (if supported by contract)
       // 3. Simple notification that room will expire naturally
-      
+
       const currentTime = Math.floor(Date.now() / 1000);
       const roomAge = currentTime - roomData.createdAt.toNumber();
       const timeoutThreshold = 7200; // 2 hours in seconds
-      
+
       if (roomAge < timeoutThreshold) {
         const remainingTime = timeoutThreshold - roomAge;
         const remainingMinutes = Math.floor(remainingTime / 60);
         const remainingHours = Math.floor(remainingMinutes / 60);
-        const displayTime = remainingHours > 0 
+        const displayTime = remainingHours > 0
           ? `${remainingHours} hour(s) and ${remainingMinutes % 60} minute(s)`
           : `${remainingMinutes} minute(s)`;
-        
+
         // For now, inform user that single-player rooms cannot be immediately cancelled
         // This prevents the constraint violation error
         throw new Error(`Single-player room cancellation: Room ${roomId} contains ${(roomData.betAmount.toNumber() / 1_000_000_000).toFixed(2)} SOL that will be automatically refunded after ${displayTime} when the room times out. Unfortunately, the smart contract doesn't support immediate cancellation of single-player rooms - they must reach the 2-hour timeout period first. Your funds are safe in escrow.`);
       }
-      
+
       // Room is old enough - try to claim timeout refund
       console.log(`Attempting timeout claim for single-player room ${roomId} (age: ${roomAge} seconds)`);
-      
+
       try {
         // First, check if this will work by simulating
         console.log('Simulating transaction first...');
-        
+
         const simulateResult = await program.methods
           .handleTimeout()
           .accounts({
             gameRoom: gameRoomPda,
             escrowAccount: escrowPda,
-            player1: player1, // Use the actual player1 from the room
-            player2: player2, // Use the actual player2 (should be defaultPubkey) from the room
+            player1, // Use the actual player1 from the room
+            player2, // Use the actual player2 (should be defaultPubkey) from the room
             systemProgram: SystemProgram.programId,
           })
           .simulate();
-          
+
         console.log('Simulation successful:', simulateResult);
 
         // If simulation passes, execute the real transaction
@@ -992,8 +988,8 @@ export const useAnchorProgram = () => {
             .accounts({
               gameRoom: gameRoomPda,
               escrowAccount: escrowPda,
-              player1: player1,
-              player2: player2, // Use the exact player2 value from the room
+              player1,
+              player2, // Use the exact player2 value from the room
               systemProgram: SystemProgram.programId,
             })
             .rpc({
@@ -1003,24 +999,23 @@ export const useAnchorProgram = () => {
             }),
           { maxRetries: 3, retryDelay: 1000 },
         );
-        
+
         console.log('✅ Single-player room timeout claimed successfully');
         console.log('Transaction:', getExplorerUrl(tx));
-        
+
         return { tx, refundAmount: roomData.betAmount };
       } catch (timeoutError) {
         console.error('Error calling handle_timeout:', timeoutError);
-        
+
         // If the error suggests a constraint violation related to player accounts,
         // provide a more user-friendly message
         const errorMsg = timeoutError instanceof Error ? timeoutError.message : String(timeoutError);
         if (errorMsg.includes('constraint') || errorMsg.includes('InvalidPlayer')) {
           throw new Error(`Smart contract constraint error: The deployed contract has strict validation for player accounts that prevents single-player room cancellation. Room ${roomId} with ${(roomData.betAmount.toNumber() / 1_000_000_000).toFixed(2)} SOL will need to be handled manually or will expire naturally. Consider contacting support if this issue persists.`);
         }
-        
+
         throw new Error(`Failed to cancel single-player room: ${formatTransactionError(timeoutError as Error)}`);
       }
-
     } catch (error) {
       console.error('Error canceling room:', error);
       const formattedError = new Error(formatTransactionError(error as Error));
@@ -1043,7 +1038,7 @@ export const useAnchorProgram = () => {
         commitment: 'confirmed',
         encoding: 'base64',
       });
-      
+
       const gameRooms: GameRoom[] = [];
       // eslint-disable-next-line no-restricted-syntax
       for (const account of accounts) {
