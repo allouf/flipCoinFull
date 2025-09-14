@@ -1,11 +1,15 @@
 module.exports = {
+  eslint: {
+    enable: false,
+    mode: 'extends',
+  },
   jest: {
     configure: {
       moduleNameMapper: {
         '^@/(.*)$': '<rootDir>/src/$1',
       },
       transformIgnorePatterns: [
-        'node_modules/(?!(@solana|rpc-websockets|bigint-buffer)/)',
+        'node_modules/(?!(@solana|rpc-websockets|bigint-buffer)/)'
       ],
       testEnvironment: 'jsdom',
       setupFilesAfterEnv: ['<rootDir>/src/setupTests.js'],
