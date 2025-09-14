@@ -434,6 +434,10 @@
             "type": "i64"
           },
           {
+            "name": "selectionDeadline",
+            "type": "i64"
+          },
+          {
             "name": "vrfResult",
             "docs": [
               "VRF/randomness result for transparency"
@@ -445,6 +449,12 @@
                   32
                 ]
               }
+            }
+          },
+          {
+            "name": "vrfStatus",
+            "type": {
+              "defined": "VrfStatus"
             }
           },
           {
@@ -518,18 +528,38 @@
           }
         ]
       }
+    },
+    {
+      "name": "VrfStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "None"
+          },
+          {
+            "name": "Pending"
+          },
+          {
+            "name": "Fulfilled"
+          },
+          {
+            "name": "Failed"
+          }
+        ]
+      }
     }
   ],
   "errors": [
     {
       "code": 6000,
       "name": "InvalidHouseFee",
-      "msg": "House fee cannot exceed maximum allowed percentage"
+      "msg": "House fee cannot exceed 10%"
     },
     {
       "code": 6001,
-      "name": "InvalidBetAmount",
-      "msg": "Bet amount is outside allowed range"
+      "name": "BetTooSmall",
+      "msg": "Bet amount is below minimum"
     },
     {
       "code": 6002,
@@ -548,68 +578,53 @@
     },
     {
       "code": 6005,
+      "name": "SelectionTimeout",
+      "msg": "Selection timeout exceeded"
+    },
+    {
+      "code": 6006,
       "name": "AlreadySelected",
       "msg": "Player has already made a selection"
     },
     {
-      "code": 6006,
-      "name": "NotInRoom",
-      "msg": "Player is not participating in this room"
-    },
-    {
       "code": 6007,
-      "name": "InvalidGameState",
-      "msg": "Invalid game state detected"
+      "name": "NotInRoom",
+      "msg": "Player is not in this room"
     },
     {
       "code": 6008,
-      "name": "MissingSelections",
-      "msg": "Both players must make selections before resolving"
+      "name": "InvalidGameState",
+      "msg": "Invalid game state"
     },
     {
       "code": 6009,
-      "name": "InvalidTimeoutCondition",
-      "msg": "Timeout condition not met"
+      "name": "MissingSelections",
+      "msg": "Missing player selections"
     },
     {
       "code": 6010,
-      "name": "TimeoutNotReached",
-      "msg": "Timeout period has not been reached"
+      "name": "InvalidTimeoutCondition",
+      "msg": "Invalid timeout condition"
     },
     {
       "code": 6011,
       "name": "Unauthorized",
-      "msg": "Unauthorized access - invalid authority"
+      "msg": "Unauthorized access"
     },
     {
       "code": 6012,
       "name": "InvalidHouseWallet",
-      "msg": "Invalid house wallet provided"
+      "msg": "Invalid house wallet"
     },
     {
       "code": 6013,
-      "name": "InvalidPlayer",
-      "msg": "Invalid player account"
+      "name": "InsufficientEscrowBalance",
+      "msg": "Insufficient escrow balance"
     },
     {
       "code": 6014,
       "name": "ProgramPaused",
-      "msg": "Program is currently paused"
-    },
-    {
-      "code": 6015,
-      "name": "RoomExpired",
-      "msg": "Room has expired and cannot be joined"
-    },
-    {
-      "code": 6016,
-      "name": "ArithmeticOverflow",
-      "msg": "Arithmetic overflow occurred"
-    },
-    {
-      "code": 6017,
-      "name": "ArithmeticUnderflow",
-      "msg": "Arithmetic underflow occurred"
+      "msg": "Program is paused"
     }
   ],
   "metadata": {
