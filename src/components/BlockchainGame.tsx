@@ -52,21 +52,37 @@ export const BlockchainGame: React.FC = () => {
     gameState,
     loading,
     error,
+    setError,
     createRoom,
     joinRoom,
     rejoinRoom,
     makeSelection,
+    resolveGameManually,
     checkForExistingGame,
     resetGame,
     leaveGame,
     handleGameTimeout,
     checkCurrentRoomTimeout,
+    clearAbandonedRoom,
+    handleAbandonedRoomTimeout,
+    abandonedRoomId,
+    forceRecoverGameState,
+    diagnoseGameState,
+    // Emergency functions
+    forceAbandonGame,
+    startFresh,
   } = useCoinFlipper();
 
   const [betAmount, setBetAmount] = useState<string>('0.01');
   const [roomIdToJoin, setRoomIdToJoin] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'create' | 'join' | 'browse' | 'refund' | 'about'>('create');
   const [isCurrentRoomTimedOut, setIsCurrentRoomTimedOut] = useState(false);
+  const [diagnosisResult, setDiagnosisResult] = useState<any>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  
+  // Track abandoned room for display (using the direct value from hook)
+  // const abandonedRoomId = getAbandonedRoomId(); // Removed - using abandonedRoomId from hook
 
   // Fetch wallet balance when connected
   useEffect(() => {
@@ -94,12 +110,14 @@ export const BlockchainGame: React.FC = () => {
     };
   }, [connected, publicKey, connection]);
 
-  // Check for existing games when wallet connects
+  // DISABLED: Check for existing games when wallet connects
+  // This was causing users to be stuck in old games when trying to create new ones
   useEffect(() => {
     if (connected && publicKey) {
-      checkForExistingGame();
+      // DISABLED: checkForExistingGame();
+      console.log('🔍 User connected - NOT auto-checking for existing games to prevent stuck states');
     }
-  }, [connected, publicKey, checkForExistingGame]);
+  }, [connected, publicKey]);
 
   // Check for timeout periodically during selection phase
   useEffect(() => {
@@ -113,12 +131,13 @@ export const BlockchainGame: React.FC = () => {
 
       // Check immediately
       checkTimeout();
-      
+
       // Check every 10 seconds during selection phase
       const timeoutInterval = setInterval(checkTimeout, 10000);
-      
+
       return () => clearInterval(timeoutInterval);
     }
+    return undefined;
   }, [gameState.gameStatus, gameState.roomId, isCurrentRoomTimedOut, checkCurrentRoomTimeout]);
 
   const handleCreateRoom = async (e: React.MouseEvent) => {
@@ -168,7 +187,7 @@ export const BlockchainGame: React.FC = () => {
         setIsCurrentRoomTimedOut(true);
         return;
       }
-      
+
       await makeSelection(selection);
     } catch (err) {
       // If we get a timeout error, mark the room as timed out
@@ -186,7 +205,15 @@ export const BlockchainGame: React.FC = () => {
 
   const handleLeaveGame = () => {
     setIsCurrentRoomTimedOut(false);
-    leaveGame();
+    leaveGame({ isTimeout: isCurrentRoomTimedOut });
+  };
+
+  const handleAbandonedTimeout = async () => {
+    try {
+      await handleAbandonedRoomTimeout();
+    } catch (err) {
+      console.error('Failed to handle abandoned room timeout:', err);
+    }
   };
 
   const handleJoinRoomFromBrowser = async (roomId: number) => {
@@ -203,6 +230,32 @@ export const BlockchainGame: React.FC = () => {
       return;
     }
     await rejoinRoom(roomId);
+  };
+
+  const handleGameRecovery = async () => {
+    setRecoveryLoading(true);
+    try {
+      const success = await forceRecoverGameState();
+      if (success) {
+        setShowDiagnostics(false);
+        setDiagnosisResult(null);
+      }
+    } catch (err) {
+      console.error('Recovery failed:', err);
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
+  const handleDiagnoseGame = async () => {
+    try {
+      const diagnosis = await diagnoseGameState();
+      setDiagnosisResult(diagnosis);
+      setShowDiagnostics(true);
+    } catch (err) {
+      console.error('Diagnosis failed:', err);
+      setError(`Diagnosis failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   };
 
   if (!connected) {
@@ -230,6 +283,50 @@ export const BlockchainGame: React.FC = () => {
         </div>
       )}
 
+      {/* Abandoned Room Notification */}
+      {abandonedRoomId && gameState.gameStatus === 'idle' && (
+        <div className="alert alert-warning mb-4">
+          <div className="flex items-center justify-between w-full">
+            <div>
+              <span className="font-semibold">🚫 Abandoned Stuck Game</span>
+              <br />
+              <span className="text-sm">
+                Room
+                {' '}
+                {abandonedRoomId}
+                {' '}
+                was abandoned to prevent wallet popups.
+                {' '}
+                You can still handle timeout if needed.
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleAbandonedTimeout}
+                className="btn btn-warning btn-sm"
+                disabled={loading}
+                title="Handle timeout for the abandoned room to get refunds"
+              >
+                {loading ? (
+                  <span className="loading loading-spinner loading-xs" />
+                ) : (
+                  '⏰ Handle Timeout'
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => clearAbandonedRoom()}
+                className="btn btn-ghost btn-sm"
+                title="Clear abandoned room memory (dismiss this notification)"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Game Status Display */}
       {gameState.roomId && (
         <div className="mb-6 p-4 bg-base-200 rounded-lg">
@@ -239,9 +336,11 @@ export const BlockchainGame: React.FC = () => {
           </p>
           <p className="text-sm text-base-content/70">
             Status:
-            <span className={`ml-1 px-2 py-1 rounded text-xs font-semibold ${
-              getStatusClassName(gameState.gameStatus)
-            }`}>
+            <span
+              className={`ml-1 px-2 py-1 rounded text-xs font-semibold ${
+                getStatusClassName(gameState.gameStatus)
+              }`}
+            >
               {getStatusText(gameState.gameStatus)}
             </span>
           </p>
@@ -259,6 +358,87 @@ export const BlockchainGame: React.FC = () => {
           )}
           {gameState.winner && (
             <p className="text-lg font-bold text-primary mt-2">{gameState.winner}</p>
+          )}
+          
+          {/* Game Recovery Tools */}
+          {(gameState.gameStatus === 'selecting' || gameState.gameStatus === 'resolving') && (
+            <div className="mt-4 pt-3 border-t border-base-300">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleGameRecovery}
+                  disabled={loading || recoveryLoading}
+                  className="btn btn-sm btn-outline btn-warning"
+                  title="Force refresh game state from blockchain"
+                >
+                  {recoveryLoading ? (
+                    <span className="loading loading-spinner loading-xs" />
+                  ) : (
+                    '🔄'
+                  )}
+                  Refresh State
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={handleDiagnoseGame}
+                  disabled={loading}
+                  className="btn btn-sm btn-outline btn-info"
+                  title="Diagnose game state issues"
+                >
+                  🔍 Diagnose
+                </button>
+              </div>
+              
+              {showDiagnostics && diagnosisResult && (
+                <div className="mt-3 p-3 bg-info/10 border border-info/20 rounded-lg">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-semibold text-info">🔍 Game Diagnosis</h4>
+                    <button
+                      type="button"
+                      onClick={() => setShowDiagnostics(false)}
+                      className="btn btn-xs btn-ghost"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  
+                  <p className="text-sm mb-2">
+                    <strong>Status:</strong>
+                    {' '}
+                    {diagnosisResult.status}
+                  </p>
+                  
+                  {diagnosisResult.issues.length > 0 && (
+                    <div className="mb-2">
+                      <strong className="text-warning text-sm">Issues Found:</strong>
+                      <ul className="text-xs mt-1 space-y-1">
+                        {diagnosisResult.issues.map((issue: string, index: number) => (
+                          <li key={`issue-${index}-${issue.slice(0, 10)}`} className="flex items-start gap-1">
+                            <span className="text-warning">⚠️</span>
+                            <span>{issue}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {diagnosisResult.recommendations.length > 0 && (
+                    <div>
+                      <strong className="text-success text-sm">Recommendations:</strong>
+                      <ul className="text-xs mt-1 space-y-1">
+                        {diagnosisResult.recommendations.map((rec: string, index: number) => (
+                          <li key={`rec-${index}-${rec.slice(0, 10)}`} className="flex items-start gap-1">
+                            <span className="text-success">💡</span>
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -429,8 +609,8 @@ export const BlockchainGame: React.FC = () => {
           )}
 
           {activeTab === 'browse' && (
-            <RoomBrowser 
-              onJoinRoom={handleJoinRoomFromBrowser} 
+            <RoomBrowser
+              onJoinRoom={handleJoinRoomFromBrowser}
               onRejoinRoom={handleRejoinRoomFromBrowser}
             />
           )}
@@ -460,7 +640,7 @@ export const BlockchainGame: React.FC = () => {
             <p>The game will start when someone joins!</p>
             <p className="mt-2 text-warning">⏰ Rooms expire after 5 minutes if no one joins</p>
           </div>
-          
+
           {/* Cancel Room Option */}
           <div className="mt-6">
             <button
@@ -485,28 +665,50 @@ export const BlockchainGame: React.FC = () => {
             // Normal selection phase
             <>
               <h3 className="text-lg font-semibold mb-4">Make Your Selection</h3>
-              
+
               {/* Selection Countdown Timer */}
               {gameState.selectionDeadline && (
                 <div className="mb-4">
                   <CountdownTimer
                     deadline={gameState.selectionDeadline * 1000} // Convert seconds to milliseconds
                     onTimeout={() => setIsCurrentRoomTimedOut(true)}
-                    showWarningColors={true}
+                    showWarningColors
                     className=""
                   />
                 </div>
               )}
-              
+
               {/* Timeout Warning */}
               {isCurrentRoomTimedOut && (
                 <div className="mb-4 p-3 bg-warning/10 border border-warning/20 rounded-lg">
-                  <p className="text-warning text-sm">
+                  <p className="text-warning text-sm mb-2">
                     ⏰ This game has timed out. Selection buttons are disabled.
                   </p>
+                  <div className="flex gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={handleGameRecovery}
+                      disabled={recoveryLoading}
+                      className="btn btn-xs btn-outline btn-warning"
+                    >
+                      {recoveryLoading ? (
+                        <span className="loading loading-spinner loading-xs" />
+                      ) : (
+                        '🔄 Refresh State'
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDiagnoseGame}
+                      disabled={loading}
+                      className="btn btn-xs btn-outline btn-info"
+                    >
+                      🔍 Diagnose
+                    </button>
+                  </div>
                 </div>
               )}
-              
+
               {gameState.opponentSelection && (
                 <div className="mb-4 p-3 bg-info/10 border border-info/20 rounded-lg">
                   <p className="text-info text-sm">
@@ -568,7 +770,8 @@ export const BlockchainGame: React.FC = () => {
                   <li>
                     <strong>Handle Timeout:</strong>
                     {' '}
-                    Execute a blockchain transaction to resolve the timeout and get your bet refunded
+                    Execute a blockchain transaction to resolve the timeout and get your
+                    bet refunded
                   </li>
                   <li>
                     <strong>Leave Game:</strong>
@@ -619,12 +822,159 @@ export const BlockchainGame: React.FC = () => {
 
       {/* Resolving */}
       {gameState.gameStatus === 'resolving' && (
-        <div className="text-center py-8">
-          <div className="loading loading-spinner loading-lg text-primary mb-4" />
-          <p className="text-lg">Waiting for blockchain confirmation...</p>
-          {gameState.opponentSelection && (
-            <p className="text-sm text-base-content/70 mt-2">Both players have made their selections</p>
+        <div className="text-center py-6">
+          <div className="mb-6">
+            <div className="loading loading-spinner loading-lg text-primary mb-4" />
+            <h3 className="text-xl font-bold text-primary mb-2">🎲 Game Resolution Phase</h3>
+          </div>
+          
+          {gameState.opponentSelection ? (
+            <div className="mb-6 p-4 bg-success/10 border-2 border-success/30 rounded-lg">
+              <div className="flex items-center justify-center mb-3">
+                <div className="w-3 h-3 bg-success rounded-full mr-2 animate-pulse"></div>
+                <p className="text-success font-bold">✅ Ready for Resolution!</p>
+              </div>
+              <p className="text-sm text-base-content/80 mb-3">
+                Both players have made their selections. The game is ready to be resolved.
+              </p>
+              
+              {/* Why manual resolution explanation */}
+              <div className="bg-info/10 border border-info/30 rounded-lg p-3 text-left">
+                <p className="text-info font-semibold text-sm mb-2">📊 Why You Need to Click "Resolve Game":</p>
+                <ul className="text-xs text-base-content/70 space-y-1">
+                  <li>• Uses VRF (Verifiable Random Function) for provably fair randomness</li>
+                  <li>• Requires a blockchain transaction (small fee ~0.001 SOL)</li>
+                  <li>• Either player can trigger resolution - whoever clicks first</li>
+                  <li>• Prevents automatic wallet popups for better user control</li>
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-6 p-4 bg-warning/10 border-2 border-warning/30 rounded-lg">
+              <div className="flex items-center justify-center mb-3">
+                <div className="w-3 h-3 bg-warning rounded-full mr-2 animate-pulse"></div>
+                <p className="text-warning font-bold">⏳ Waiting for Game State Update</p>
+              </div>
+              <p className="text-sm text-base-content/70">
+                Game is in resolving state but we're confirming both players have selected.
+                <br />
+                This usually updates within 15-30 seconds automatically.
+              </p>
+            </div>
           )}
+
+          {/* Show error message if game resolution failed */}
+          {(error && (error.includes('VRF') || error.includes('resolution failed') || error.includes('resolving'))) && (
+            <div className="mt-4 p-3 bg-error/10 border border-error/20 rounded-lg">
+              <p className="text-error text-sm mb-2">
+                ⚠️ Game Resolution Issue Detected
+              </p>
+              <p className="text-base-content/70 text-xs mb-3">
+                {error}
+              </p>
+              <div className="bg-warning/10 border border-warning/20 rounded p-3 text-left">
+                <p className="text-warning text-xs font-semibold mb-2">⚡ Recovery Options:</p>
+                <ul className="text-xs text-base-content/70 space-y-1">
+                  <li>
+                    •
+                    {' '}
+                    <strong>Refresh State:</strong>
+                    {' '}
+                    Use the &ldquo;Refresh State&rdquo; button above to reload from blockchain
+                  </li>
+                  <li>
+                    •
+                    {' '}
+                    <strong>Manual Resolve:</strong>
+                    {' '}
+                    Try the &ldquo;Resolve Game&rdquo; button to manually trigger completion
+                  </li>
+                  <li>
+                    •
+                    {' '}
+                    <strong>Handle Timeout:</strong>
+                    {' '}
+                    Use if deadline has passed to claim refunds
+                  </li>
+                  <li>
+                    •
+                    {' '}
+                    <strong>Diagnose:</strong>
+                    {' '}
+                    Use the &ldquo;Diagnose&rdquo; button to get detailed issue analysis
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Recovery Options for stuck resolving games */}
+          <div className="mt-6 space-y-3">
+            {/* Manual Resolution - try to complete the game */}
+            <button
+              type="button"
+              onClick={async () => {
+                if (gameState.roomId) {
+                  await resolveGameManually(gameState.roomId);
+                }
+              }}
+              className="btn btn-primary btn-sm mr-3"
+              disabled={loading}
+              title="Try to manually resolve the game and determine winner"
+            >
+              <span className="mr-2">🎲</span>
+              {loading ? 'Resolving...' : 'Resolve Game'}
+            </button>
+            
+            {/* Timeout option - only show if we can check timeout */}
+            <button
+              type="button"
+              onClick={async () => {
+                if (gameState.roomId) {
+                  const isTimedOut = await checkCurrentRoomTimeout();
+                  if (isTimedOut) {
+                    await handleGameTimeout(gameState.roomId);
+                  } else {
+                    setError('Game has not yet timed out. Please wait or try again later.');
+                  }
+                }
+              }}
+              className="btn btn-warning btn-sm mr-3"
+              disabled={loading}
+            >
+              <span className="mr-2">⏰</span>
+              {loading ? 'Checking...' : 'Handle Timeout'}
+            </button>
+
+            {/* Leave Game - with clear warning */}
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(
+                  'WARNING: This will only reset your local UI. Your funds will remain locked on the blockchain until the game resolves or times out. Continue?',
+                )) {
+                  handleLeaveGame();
+                }
+              }}
+              className="btn btn-outline btn-error btn-sm"
+              disabled={loading}
+            >
+              <span className="mr-2">🚪</span>
+              Leave Game (UI Only)
+            </button>
+
+            <div className="mt-4 text-xs text-base-content/60">
+              <p className="font-semibold text-warning">💡 Important:</p>
+              <p>
+                &quot;Handle Timeout&quot; will refund both players if the game has exceeded
+                its time limit.
+              </p>
+              <p>
+                &quot;Leave Game&quot; only resets your UI - your SOL remains locked until
+                resolved.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -642,6 +992,69 @@ export const BlockchainGame: React.FC = () => {
           >
             Play Again
           </button>
+        </div>
+      )}
+
+      {/* Emergency Controls - Always Available */}
+      {gameState.gameStatus !== 'idle' && (
+        <div className="mt-6 border-t border-base-300 pt-4">
+          <div className="collapse collapse-arrow bg-error/5 border border-error/20">
+            <input type="checkbox" />
+            <div className="collapse-title text-error text-sm font-medium">
+              🚨 Emergency Controls
+            </div>
+            <div className="collapse-content">
+              <p className="text-xs text-base-content/70 mb-4">
+                Use these controls if you're stuck in any game state and need to reset.
+              </p>
+              
+              <div className="space-y-2">
+                {/* Force Abandon - Immediately mark game as abandoned and reset UI */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(
+                      'EMERGENCY: This will mark the current game as abandoned and reset your UI to idle state. Your SOL may remain locked on-chain until properly resolved. Continue?'
+                    )) {
+                      forceAbandonGame();
+                    }
+                  }}
+                  className="btn btn-error btn-xs w-full"
+                  disabled={loading}
+                >
+                  <span className="mr-2">🆘</span>
+                  Force Abandon Current Game
+                </button>
+                
+                {/* Start Fresh - Complete reset */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(
+                      'FRESH START: This will completely reset all game state and clear all abandoned room memory. You can then create new games normally. Continue?'
+                    )) {
+                      startFresh();
+                    }
+                  }}
+                  className="btn btn-warning btn-xs w-full"
+                  disabled={loading}
+                >
+                  <span className="mr-2">🌱</span>
+                  Complete Fresh Start
+                </button>
+                
+                <div className="text-xs text-base-content/60 bg-base-200 p-2 rounded mt-2">
+                  <p className="font-semibold text-warning">⚠️ Important:</p>
+                  <ul className="list-disc list-inside space-y-1 mt-1">
+                    <li>These are LOCAL UI resets only</li>
+                    <li>Your SOL may remain locked on-chain</li>
+                    <li>Use "Handle Timeout" in the game to recover funds</li>
+                    <li>"Fresh Start" allows creating new games immediately</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

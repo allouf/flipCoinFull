@@ -49,6 +49,9 @@ export async function retryTransaction(
         || lastError.message.includes('insufficient funds')
         || lastError.message.includes('insufficient lamports')
         || lastError.message.includes('Invalid program')
+        || lastError.message.includes('AccountDidNotSerialize')
+        || lastError.message.includes('ConstraintMut')
+        || lastError.message.includes('no second player')
       ) {
         // For user rejection, throw a more user-friendly error without the stack trace
         if (lastError.message.includes('User rejected')) {
@@ -126,6 +129,12 @@ export function formatTransactionError(error: Error): string {
     return 'Transaction timed out. Please try again.';
   } if (message.includes('invalid program')) {
     return 'Smart contract error. Please contact support.';
+  } if (message.includes('accountdidnotserialize')) {
+    return 'Game account is corrupted. Try "Handle Timeout" or "Leave Game".';
+  } if (message.includes('constraintmut') && message.includes('player_2')) {
+    return 'Cannot process: Game has no second player. Try "Leave Game" instead.';
+  } if (message.includes('no second player')) {
+    return 'This game never had a second player. Use "Leave Game" to exit.';
   }
   return `Transaction failed: ${error.message}`;
 }

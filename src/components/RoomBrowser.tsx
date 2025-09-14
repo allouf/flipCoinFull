@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, {
+  useState, useEffect, useCallback, useMemo,
+} from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useAnchorProgram, GameRoom } from '../hooks/useAnchorProgram';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -19,7 +21,7 @@ interface FilterOptions {
 
 const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) => {
   const { publicKey } = useWallet();
-  const { fetchAllGameRooms, handleTimeout, isProgramReady } = useAnchorProgram();
+  const { fetchAllGameRooms, handleTimeout, cancelRoom, isProgramReady } = useAnchorProgram();
   const [rooms, setRooms] = useState<GameRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [manualLoading, setManualLoading] = useState(false);
@@ -29,13 +31,20 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
-  
+
+  // Circuit breaker for failed requests
+  const [consecutiveFailures, setConsecutiveFailures] = useState(0);
+  const [isCircuitOpen, setIsCircuitOpen] = useState(false);
+  const [lastFailureTime, setLastFailureTime] = useState<number>(0);
+  const MAX_FAILURES = 3;
+  const CIRCUIT_RESET_TIME = 60000; // 1 minute
+
   // New state for enhanced UI
   const [activeTab, setActiveTab] = useState<TabType>('available');
   const [filters, setFilters] = useState<FilterOptions>({
     minBet: '',
     maxBet: '',
-    sortBy: 'newest'
+    sortBy: 'newest',
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
@@ -51,9 +60,27 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
       return;
     }
 
+    // Circuit breaker logic - skip automatic requests if circuit is open
+    const now = Date.now();
+    if (isCircuitOpen && !isManual) {
+      if (now - lastFailureTime < CIRCUIT_RESET_TIME) {
+        console.log('Circuit breaker is open, skipping automatic refresh');
+        return;
+      }
+      // Reset circuit breaker after timeout
+      console.log('Resetting circuit breaker after timeout');
+      setIsCircuitOpen(false);
+      setConsecutiveFailures(0);
+    }
+
     // Add a timeout wrapper to prevent hanging
     const loadWithTimeout = async () => {
-      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Load rooms timeout after 30 seconds')), 30000));
+      const timeout = new Promise<never>(
+        (_, reject) => setTimeout(
+          () => reject(new Error('Load rooms timeout after 30 seconds')),
+          30000,
+        ),
+      );
 
       const loadOperation = async () => {
         console.log('Starting to load rooms...');
@@ -74,6 +101,14 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
 
         setRooms(allRooms);
         setHasLoadedOnce(true);
+
+        // Reset circuit breaker on success
+        if (consecutiveFailures > 0) {
+          console.log('Resetting circuit breaker after successful request');
+          setConsecutiveFailures(0);
+          setIsCircuitOpen(false);
+        }
+
         console.log('Successfully updated rooms state');
       };
 
@@ -87,7 +122,30 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
       if (err instanceof Error) {
         console.error('Error stack:', err.stack);
       }
-      setError(err instanceof Error ? err.message : 'Failed to load rooms');
+
+      // Update circuit breaker state
+      const newFailureCount = consecutiveFailures + 1;
+      setConsecutiveFailures(newFailureCount);
+      setLastFailureTime(Date.now());
+      
+      if (newFailureCount >= MAX_FAILURES) {
+        console.log('Circuit breaker opened due to consecutive failures');
+        setIsCircuitOpen(true);
+      }
+
+      // Set appropriate error messages
+      let errorMessage = 'Failed to load rooms';
+      if (err instanceof Error) {
+        if (err.message.includes('429') || err.message.includes('Too Many Requests')) {
+          errorMessage = 'Network is busy. Automatic refreshing paused. You can manually refresh in a moment.';
+        } else if (err.message.includes('timeout')) {
+          errorMessage = 'Network connection is slow. Please check your connection.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+
+      setError(errorMessage);
       setHasLoadedOnce(true); // Set this to true so we don't keep retrying
     } finally {
       console.log('Setting loading to false');
@@ -96,14 +154,20 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
         setManualLoading(false);
       }
     }
-  }, [fetchAllGameRooms, isProgramReady]);
+  }, [fetchAllGameRooms, isProgramReady, consecutiveFailures, isCircuitOpen, lastFailureTime]);
 
   useEffect(() => {
     // Only load rooms once when the program becomes ready
     if (isProgramReady && !hasLoadedOnce) {
       loadRooms();
-      // Start polling for room updates every 15 seconds (less aggressive)
+      // Start polling for room updates every 45 seconds (much less aggressive)
       const interval = setInterval(async () => {
+        // Skip auto-refresh if circuit is open
+        if (isCircuitOpen) {
+          console.log('Skipping auto-refresh due to circuit breaker');
+          return;
+        }
+
         console.log('Auto-refreshing rooms for real-time updates...');
         setIsAutoRefreshing(true);
         try {
@@ -112,10 +176,10 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
         } finally {
           setIsAutoRefreshing(false);
         }
-      }, 15000); // Changed from 5000ms to 15000ms (15 seconds)
+      }, 45000); // Changed to 45 seconds to prevent rate limiting
       setPollingInterval(interval);
     }
-  }, [isProgramReady, hasLoadedOnce, loadRooms]);
+  }, [isProgramReady, hasLoadedOnce, loadRooms, isCircuitOpen]);
   // Cleanup polling on unmount
   useEffect(() => () => {
     if (pollingInterval) {
@@ -157,7 +221,7 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
   // Filter and sort rooms based on current tab and filters
   const filteredAndSortedRooms = useMemo(() => {
     let filteredRooms = [...rooms];
-    
+
     // Filter by tab
     switch (activeTab) {
       case 'available':
@@ -175,22 +239,22 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
       default:
         break;
     }
-    
+
     // Filter by bet amount
     if (filters.minBet) {
       const minBetLamports = parseFloat(filters.minBet) * 1_000_000_000;
-      filteredRooms = filteredRooms.filter(room => 
-        (room.betAmount?.toNumber() || 0) >= minBetLamports
+      filteredRooms = filteredRooms.filter(
+        (room) => (room.betAmount?.toNumber() || 0) >= minBetLamports,
       );
     }
-    
+
     if (filters.maxBet) {
       const maxBetLamports = parseFloat(filters.maxBet) * 1_000_000_000;
-      filteredRooms = filteredRooms.filter(room => 
-        (room.betAmount?.toNumber() || 0) <= maxBetLamports
+      filteredRooms = filteredRooms.filter(
+        (room) => (room.betAmount?.toNumber() || 0) <= maxBetLamports,
       );
     }
-    
+
     // Sort rooms
     filteredRooms.sort((a, b) => {
       switch (filters.sortBy) {
@@ -206,9 +270,9 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
           return 0;
       }
     });
-    
+
     return filteredRooms;
-  }, [rooms, activeTab, filters, publicKey]);
+  }, [rooms, activeTab, filters, publicKey, isAvailableRoom, isMyRoom, isActiveRoom, isHistoryRoom]);
 
   // Paginated rooms
   const paginatedRooms = useMemo(() => {
@@ -300,11 +364,50 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
   const handleClaimRefund = async (roomId: number) => {
     try {
       setError(null);
-      await handleTimeout(roomId);
+      
+      // Find the room to determine the appropriate refund method
+      const room = rooms.find(r => r.roomId?.toNumber() === roomId);
+      if (!room) {
+        throw new Error(`Room ${roomId} not found`);
+      }
+
+      // Check if this is a single-player room (waiting for player) or two-player room
+      const isWaitingForPlayer = room.status && 'waitingForPlayer' in room.status;
+      const isSelectionsPending = room.status && 'selectionsPending' in room.status;
+      
+      if (isWaitingForPlayer) {
+        // Single-player room - try cancelRoom with improved error handling
+        console.log(`Attempting to cancel single-player room ${roomId}`);
+        try {
+          await cancelRoom(roomId);
+          // If successful, show success message
+          setError(null);
+        } catch (cancelError) {
+          // Show the error message from cancelRoom which now includes helpful information
+          throw cancelError;
+        }
+      } else if (isSelectionsPending) {
+        // Two-player room - use handleTimeout
+        console.log(`Attempting to handle timeout for two-player room ${roomId}`);
+        await handleTimeout(roomId);
+      } else {
+        throw new Error('Room is not in a refundable state. Only rooms waiting for players or with pending selections can be refunded.');
+      }
+      
       // Reload rooms after successful refund
       await loadRooms();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to claim refund');
+      console.error('Refund error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to claim refund';
+      
+      // Check if this is the single-player room timeout message
+      if (errorMessage.includes('Single-player room cancellation:') || 
+          errorMessage.includes('automatically refunded after')) {
+        // This is informational, not really an error - format it better
+        setError(`ℹ️ ${errorMessage}`);
+      } else {
+        setError(`❌ ${errorMessage}`);
+      }
     }
   };
 
@@ -353,7 +456,7 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
         </div>
         <div className="flex items-center space-x-3">
           <div className="text-xs text-gray-500">
-            Auto-refresh every 15s
+            Auto-refresh every 45s{isCircuitOpen ? ' (paused)' : ''}
           </div>
           <button
             type="button"
@@ -368,7 +471,68 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <p className="text-red-800">{error}</p>
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              {error.includes('429') || error.includes('busy') || error.includes('Too Many Requests') ? (
+                <span className="text-lg">🚦</span>
+              ) : error.includes('timeout') || error.includes('slow') || error.includes('connection') ? (
+                <span className="text-lg">🌐</span>
+              ) : (
+                <span className="text-lg">⚠️</span>
+              )}
+            </div>
+            <div className="flex-1">
+              <div className="font-medium text-red-800 mb-1">
+                {error.includes('429') || error.includes('busy') ? 'Network Traffic High' :
+                  error.includes('timeout') || error.includes('slow')
+                    ? 'Connection Issue'
+                    : 'Loading Error'}
+              </div>
+              <p className="text-red-700 text-sm mb-3">{error}</p>
+              
+              {(error.includes('429') || error.includes('busy')) && (
+                <div className="text-xs text-red-600 bg-red-100 p-2 rounded mb-3">
+                  <strong>What&apos;s happening:</strong>
+                  {' '}
+                  The Solana network is experiencing high traffic.
+                  <br />
+                  <strong>What to do:</strong>
+                  {' '}
+                  Wait a moment and try again, or enter a room ID directly above.
+                </div>
+              )}
+              
+              {error.includes('Circuit breaker') && (
+                <div className="text-xs text-red-600 bg-red-100 p-2 rounded mb-3">
+                  <strong>Automatic updates paused</strong>
+                  {' '}
+                  due to network issues. You can still manually refresh or join rooms
+                  directly.
+                </div>
+              )}
+              
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    loadRooms(true, true);
+                  }}
+                  disabled={manualLoading}
+                  className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
+                >
+                  {manualLoading ? 'Trying...' : 'Try Again'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setError(null)}
+                  className="px-3 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -469,40 +633,54 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
           <div className="bg-gray-50 p-4 rounded-lg mb-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="minBet"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Min Bet (SOL)
                 </label>
                 <input
+                  id="minBet"
                   type="number"
                   min="0"
                   step="0.01"
                   value={filters.minBet}
-                  onChange={(e) => setFilters(prev => ({ ...prev, minBet: e.target.value }))}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, minBet: e.target.value }))}
                   placeholder="0.00"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="maxBet"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Max Bet (SOL)
                 </label>
                 <input
+                  id="maxBet"
                   type="number"
                   min="0"
                   step="0.01"
                   value={filters.maxBet}
-                  onChange={(e) => setFilters(prev => ({ ...prev, maxBet: e.target.value }))}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, maxBet: e.target.value }))}
                   placeholder="100.00"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="sortBy"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Sort By
                 </label>
                 <select
+                  id="sortBy"
                   value={filters.sortBy}
-                  onChange={(e) => setFilters(prev => ({ ...prev, sortBy: e.target.value as SortBy }))}
+                  onChange={(e) => setFilters(
+                    (prev) => ({ ...prev, sortBy: e.target.value as SortBy }),
+                  )}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="newest">Newest First</option>
@@ -533,13 +711,20 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
             {activeTab === 'my-rooms' && 'My Rooms'}
             {activeTab === 'active' && 'Active Games'}
             {activeTab === 'history' && 'Game History'}
-            {' '}(
+            {' '}
+            (
             {filteredAndSortedRooms.length}
             )
           </h3>
           {totalPages > 1 && (
             <div className="text-sm text-gray-600">
-              Page {currentPage} of {totalPages}
+              Page
+              {' '}
+              {currentPage}
+              {' '}
+              of
+              {' '}
+              {totalPages}
             </div>
           )}
         </div>
@@ -558,9 +743,9 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">What you can do:</p>
                   <div className="text-sm text-gray-600">
-                    <p>• Create a new room and invite others to play</p>
-                    <p>• Ask a friend to share their Room ID with you</p>
-                    <p>• Check back later for new public rooms</p>
+                  <p>&bull; Create a new room and invite others to play</p>
+                  <p>&bull; Ask a friend to share their Room ID with you</p>
+                  <p>&bull; Check back later for new public rooms</p>
                   </div>
                 </div>
               </>
@@ -570,8 +755,8 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Rooms Found</h3>
                 <p className="text-gray-600 mb-4">You haven't created or joined any rooms yet.</p>
                 <div className="text-sm text-gray-600">
-                  <p>• Create your first room to start playing</p>
-                  <p>• Join an available room or use a Room ID</p>
+                  <p>&bull; Create your first room to start playing</p>
+                  <p>&bull; Join an available room or use a Room ID</p>
                 </div>
               </>
             )}
@@ -580,8 +765,8 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Active Games</h3>
                 <p className="text-gray-600 mb-4">You don't have any games currently in progress.</p>
                 <div className="text-sm text-gray-600">
-                  <p>• Join an available room to start a new game</p>
-                  <p>• Create a room and wait for someone to join</p>
+                  <p>&bull; Join an available room to start a new game</p>
+                  <p>&bull; Create a room and wait for someone to join</p>
                 </div>
               </>
             )}
@@ -590,7 +775,7 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Game History</h3>
                 <p className="text-gray-600 mb-4">You haven't completed any games yet.</p>
                 <div className="text-sm text-gray-600">
-                  <p>• Play some games to see your history here</p>
+                  <p>&bull; Play some games to see your history here</p>
                 </div>
               </>
             )}
@@ -673,9 +858,19 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
             {totalPages > 1 && (
               <div className="mt-6 flex items-center justify-between">
                 <div className="text-sm text-gray-700">
-                  Showing {(currentPage - 1) * ROOMS_PER_PAGE + 1} to{' '}
-                  {Math.min(currentPage * ROOMS_PER_PAGE, filteredAndSortedRooms.length)} of{' '}
-                  {filteredAndSortedRooms.length} rooms
+                  Showing
+                  {' '}
+                  {(currentPage - 1) * ROOMS_PER_PAGE + 1}
+                  {' '}
+                  to
+                  {' '}
+                  {Math.min(currentPage * ROOMS_PER_PAGE, filteredAndSortedRooms.length)}
+                  {' '}
+                  of
+                  {' '}
+                  {filteredAndSortedRooms.length}
+                  {' '}
+                  rooms
                 </div>
                 <div className="flex items-center space-x-1">
                   <button
@@ -689,10 +884,10 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
                   
                   {/* Page Numbers */}
                   {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter(pageNum => {
+                    .filter((pageNum) => {
                       // Show first page, last page, current page, and pages around current
-                      return pageNum === 1 || pageNum === totalPages || 
-                             Math.abs(pageNum - currentPage) <= 1;
+                      return pageNum === 1 || pageNum === totalPages
+                        || Math.abs(pageNum - currentPage) <= 1;
                     })
                     .map((pageNum, index, array) => {
                       // Add ellipsis if there's a gap

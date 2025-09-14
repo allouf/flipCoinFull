@@ -20,7 +20,7 @@ The following features have been implemented:
 - [x] **Escrow Account System** - Secure fund holding with proper state transitions
 - [x] **House Fee Implementation** - 3% fee (300 basis points) deducted from winning pot
 - [x] **Player Statistics Tracking** - On-chain stats for wins, losses, and wagered amounts
-- [x] **Smart Contract Deployed** - GGowNXivyzWKePKstFpyU18ykoaM9ygKuuzAV1mYoczn on Solana Devnet
+- [x] **Smart Contract Deployed** - DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp on Solana Devnet
 - [x] **Event Emission System** - Comprehensive events for all game actions
 - [x] **Error Handling Framework** - Custom error codes for all edge cases
 - [x] **Timeout Resolution** - Automatic win if opponent doesn't select within 30 seconds
@@ -37,10 +37,10 @@ The following features have been implemented:
 - [x] **Real-time Cross-Tab Synchronization** - BroadcastChannel API integration for multi-tab game state sync
 - [x] **Transaction History with Export** - Complete UI with filtering, statistics, and CSV export capabilities
 
-## Phase 1: Production Readiness (Current Focus)
+## Phase 1: Bug Fixes & Testing (Current Focus)
 
-**Goal:** Complete production deployment readiness with real VRF accounts and security audit preparation
-**Success Criteria:** Production VRF accounts configured, house wallet secured, comprehensive load testing completed, ready for security audit
+**Goal:** Resolve all bugs in Devnet testing and achieve stable, error-free operation before production deployment
+**Success Criteria:** Zero errors in app functionality, all game flows working correctly on Devnet, ready for Mainnet migration
 
 ### Features
 
@@ -51,6 +51,8 @@ The following features have been implemented:
 - [x] **Advanced Error Recovery** - VRFErrorDetector, VRFTransactionRetry, and VRFEmergencyFallback systems
 - [x] **Production Deployment Scripts** - Automated deployment with pre-deployment validation and house wallet setup
 - [x] **Transaction History & Analytics** - Complete UI with filtering, stats tracking, and CSV export
+- [ ] **Bug Resolution** - Fix all identified bugs in current Devnet deployment `L`
+- [ ] **End-to-End Testing** - Complete testing of all game flows on Devnet `M`
 - [ ] **Production VRF Account Configuration** - Replace placeholder VRF accounts with real Switchboard oracles `M`
 - [ ] **Production House Wallet Setup** - Configure secure multisig wallet for fee collection `S`
 - [ ] **Load Testing & Performance Optimization** - Stress test with 100+ concurrent users and optimize bottlenecks `L`
@@ -63,7 +65,12 @@ The following features have been implemented:
 - WebSocket infrastructure for real-time matchmaking
 - Frontend optimization for auto-matching UI
 
-## Phase 2: Enhanced User Experience
+## Phase 2: Mainnet Deployment
+
+**Goal:** Deploy error-free application to Solana Mainnet with production configurations
+**Success Criteria:** Successful mainnet deployment, first 100 real money bets processed without issues
+
+## Phase 3: Enhanced User Experience
 
 **Goal:** Improve platform usability and add social features
 **Success Criteria:** 50% increase in user retention, average session time >10 minutes
@@ -83,7 +90,7 @@ The following features have been implemented:
 - User account system (wallet-based)
 - CDN for media assets
 
-## Phase 3: Scale and Gamification
+## Phase 4: Scale and Gamification
 
 **Goal:** Build competitive ecosystem and increase engagement
 **Success Criteria:** 1000+ daily active users, 10,000+ daily bets

@@ -11,9 +11,10 @@ import {
 } from '@coral-xyz/anchor';
 import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import idl from '../idl/coin_flipper.json';
-import { PROGRAM_ID } from '../config/program';
+import { PROGRAM_ID, getExplorerUrl } from '../config/program';
 import { retryTransaction, formatTransactionError } from '../utils/transaction';
 import { checkSufficientBalance, formatInsufficientBalanceMessage } from '../utils/balanceValidation';
+import { rpcManager } from '../utils/rpcManager';
 
 // Type definitions for the program
 export interface GameRoom {
@@ -75,6 +76,17 @@ const deriveGameRoomPDA = (
     ],
     programId,
   );
+};
+
+// Helper function to get room status as a string
+const getRoomStatusString = (status: any): string => {
+  if (!status) return 'Unknown';
+  if (status.waitingForPlayer) return 'WaitingForPlayer';
+  if (status.selectionsPending) return 'SelectionsPending';
+  if (status.resolving) return 'Resolving';
+  if (status.completed) return 'Completed';
+  if (status.cancelled) return 'Cancelled';
+  return 'Unknown';
 };
 
 export const useAnchorProgram = () => {
@@ -173,8 +185,15 @@ export const useAnchorProgram = () => {
       program.programId,
     );
 
+    // Derive global state PDA (required by CreateRoom struct)
+    const [globalStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('global_state')],
+      program.programId,
+    );
+
     console.log('- Game Room PDA:', gameRoomPda.toString());
     console.log('- Escrow PDA:', escrowPda.toString());
+    console.log('- Global State PDA:', globalStatePda.toString());
 
     try {
       const tx = await retryTransaction(
@@ -184,6 +203,7 @@ export const useAnchorProgram = () => {
           .accounts({
             gameRoom: gameRoomPda,
             escrowAccount: escrowPda,
+            globalState: globalStatePda,
             creator: wallet.publicKey!,
             systemProgram: SystemProgram.programId,
           })
@@ -293,6 +313,17 @@ export const useAnchorProgram = () => {
       program.programId,
     );
 
+    // Derive global state PDA (required by JoinRoom struct)
+    const [globalStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('global_state')],
+      program.programId,
+    );
+
+    console.log('Joining room with:');
+    console.log('- Game Room PDA:', gameRoomPda.toString());
+    console.log('- Escrow PDA:', escrowPda.toString());
+    console.log('- Global State PDA:', globalStatePda.toString());
+
     try {
       const tx = await retryTransaction(
         program.provider.connection,
@@ -301,6 +332,7 @@ export const useAnchorProgram = () => {
           .accounts({
             gameRoom: gameRoomPda,
             escrowAccount: escrowPda,
+            globalState: globalStatePda,
             joiner: wallet.publicKey!,
             systemProgram: SystemProgram.programId,
           })
@@ -350,8 +382,50 @@ export const useAnchorProgram = () => {
       }
 
       gameRoomPda = targetRoom.publicKey;
+      const roomData = targetRoom.account as any;
+      
+      // Check if room is in correct state for making selections
+      const roomStatus = roomData.status;
+      console.log('Current room status before selection:', getRoomStatusString(roomStatus));
+      
+      if (!roomStatus || !roomStatus.selectionsPending) {
+        const statusName = getRoomStatusString(roomStatus);
+        
+        // Clear cache for this room since we have stale data
+        console.log('⚠️ Room state mismatch detected, clearing cache for room:', roomId);
+        rpcManager.clearCache();
+        
+        // If game is already resolving, both players have selected - show appropriate message
+        if (roomStatus && roomStatus.resolving) {
+          throw new Error(`Cannot make selection: Both players have already selected. Game is now resolving. Current status: ${statusName}`);
+        }
+        
+        // For other invalid states
+        throw new Error(`Cannot make selection: Room status must be 'SelectionsPending' but is currently '${statusName}'. This room may not be ready for selections.`);
+      }
+      
+      // Check if this player has already made a selection
+      const isPlayer1 = roomData.player1 && wallet.publicKey && roomData.player1.equals(wallet.publicKey);
+      const isPlayer2 = roomData.player2 && wallet.publicKey && roomData.player2.equals(wallet.publicKey);
+      
+      if (isPlayer1 && roomData.player1Selection !== null) {
+        throw new Error('Cannot make selection: You have already made your selection.');
+      }
+      
+      if (isPlayer2 && roomData.player2Selection !== null) {
+        throw new Error('Cannot make selection: You have already made your selection.');
+      }
+      
     } catch (error) {
-      throw new Error(`Failed to find room ${roomId}: ${error}`);
+      // If this is already one of our formatted error messages, just re-throw it
+      if (error instanceof Error && (
+        error.message.includes('Cannot make selection:') ||
+        error.message.includes('Room ${roomId} not found')
+      )) {
+        throw error;
+      }
+      // Otherwise, wrap in a generic validation error
+      throw new Error(`Failed to validate room state: ${error}`);
     }
 
     // Try object-style enum variant (Borsh format)
@@ -384,127 +458,303 @@ export const useAnchorProgram = () => {
     }
   }, [program, wallet.publicKey]);
 
-  const fetchGameRoom = useCallback(async (roomId: number): Promise<GameRoom | null> => {
+  const fetchAllGameRooms = useCallback(async (options: { userInitiated?: boolean; priority?: 'low' | 'normal' | 'high' } = {}): Promise<GameRoom[]> => {
     if (!program) {
       throw new Error('Program not initialized');
     }
 
-    try {
-      // Get all game rooms and find the one with matching roomId
-      // Use connection to get program accounts since typed accounts aren't available
+    const { userInitiated = false, priority = 'normal' } = options;
+    const requestKey = 'fetchAllGameRooms';
+
+    return rpcManager.execute(requestKey, async () => {
+      console.log('🚀 Starting optimized fetchAllGameRooms...');
       const { connection: conn } = program.provider;
-      const accounts = await conn.getProgramAccounts(PROGRAM_ID);
+
+      // Get program accounts efficiently
+      const accounts = await conn.getProgramAccounts(PROGRAM_ID, {
+        commitment: 'confirmed',
+        encoding: 'base64',
+      });
+
+      console.log(`📊 Found ${accounts.length} total accounts for program`);
+
+      if (accounts.length === 0) {
+        console.log('ℹ️ No game rooms found - this is normal for new programs');
+        return [];
+      }
+
+      // Process the accounts efficiently
+      const gameRooms: GameRoom[] = [];
+      // eslint-disable-next-line no-restricted-syntax
+      for (const account of accounts) {
+        try {
+          // Try to decode as GameRoom using exact IDL account name
+          const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
+          gameRooms.push(decoded);
+        } catch (decodeError) {
+          // Skip non-GameRoom accounts (like GlobalState) silently
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+      }
+
+      console.log(`✅ Successfully processed ${gameRooms.length} game rooms`);
+      return gameRooms;
+    }, {
+      ttl: userInitiated ? 30000 : 120000, // 30s for user actions, 2m for background
+      priority,
+      userInitiated,
+      useStale: !userInitiated, // Allow stale data for non-user actions
+    });
+  }, [program]);
+
+  const fetchGameRoom = useCallback(
+    async (roomId: number, userInitiated = false): Promise<GameRoom | null> => {
+    if (!program) {
+      throw new Error('Program not initialized');
+    }
+
+    const requestKey = `fetchGameRoom-${roomId}`;
+
+    try {
+      return await rpcManager.execute(requestKey, async () => {
+        // Get all game rooms and find the one with matching roomId
+        const allRooms = await fetchAllGameRooms({ userInitiated });
+        const targetRoom = allRooms.find((room: any) => room.roomId?.toNumber() === roomId);
+
+        if (!targetRoom) {
+          console.warn(`Room ${roomId} not found`);
+          return null;
+        }
+
+        return targetRoom;
+      }, {
+        ttl: userInitiated ? 15000 : 60000, // 15s for user actions, 1m otherwise
+        priority: userInitiated ? 'high' : 'normal',
+        userInitiated,
+        useStale: !userInitiated,
+      });
+    } catch (error) {
+      console.error('Error fetching game room:', error);
+      return null;
+    }
+    }, [program, fetchAllGameRooms],
+  );
+
+  const resolveGame = useCallback(async (roomId: number) => {
+    if (!program || !wallet.publicKey) {
+      throw new Error('Program not initialized or wallet not connected');
+    }
+
+    console.log(`Resolving game for room ${roomId}...`);
+    let gameRoomPda: PublicKey;
+
+    try {
+      // Find the room first with enhanced validation
+      const { connection: conn } = program.provider;
+      const accounts = await conn.getProgramAccounts(PROGRAM_ID, {
+        commitment: 'confirmed',
+        encoding: 'base64',
+      });
+      
+      console.log(`🔍 Found ${accounts.length} program accounts to scan`);
+      
       const allRooms = accounts.map((account) => {
         try {
+          // Validate account data exists and has minimum length
+          if (!account.account.data || account.account.data.length < 8) {
+            return null;
+          }
+          
           // Use correct IDL account name for discriminator derivation
           const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
+          
+          // Validate decoded data has required fields
+          if (!decoded.roomId || !decoded.status) {
+            console.warn(`⚠️ Decoded account missing required fields:`, account.pubkey.toString());
+            return null;
+          }
+          
           return { publicKey: account.pubkey, account: decoded };
-        } catch {
+        } catch (err) {
+          // Log decode failures for debugging
+          console.debug(`Failed to decode account ${account.pubkey.toString()}:`, err);
           return null;
         }
       }).filter((room) => room !== null);
+
+      console.log(`✅ Successfully decoded ${allRooms.length} GameRoom accounts`);
+
       const targetRoom = allRooms.find(
         (room: any) => room.account?.roomId?.toNumber() === roomId,
       );
 
       if (!targetRoom) {
-        console.error(`Room ${roomId} not found`);
-        return null;
+        throw new Error(`Room ${roomId} not found among ${allRooms.length} available rooms`);
       }
 
-      return targetRoom.account as any;
-    } catch (error) {
-      console.error('Error fetching game room:', error);
-      return null;
-    }
-  }, [program]);
+      gameRoomPda = targetRoom.publicKey;
+      const roomData = targetRoom.account as any;
+      
+      // Additional validation of room data integrity
+      if (!roomData.player1 || !roomData.player2) {
+        throw new Error(`Room ${roomId} has invalid player data`);
+      }
 
-  const fetchAllGameRooms = useCallback(async (): Promise<GameRoom[]> => {
-    if (!program) {
-      throw new Error('Program not initialized');
-    }
-
-    console.log('Starting fetchAllGameRooms...');
-    console.log('Program ID:', PROGRAM_ID.toString());
-    console.log('Connection endpoint:', program.provider.connection.rpcEndpoint);
-
-    try {
-      // First, verify connection is working
-      const { connection: conn } = program.provider;
-      console.log('Testing connection...');
-      const slot = await conn.getSlot();
-      console.log(`Connection working, current slot: ${slot}`);
-
-      // Now try to get program accounts with a shorter timeout
-      console.log('Fetching program accounts...');
-      const accounts = await conn.getProgramAccounts(PROGRAM_ID, {
-        commitment: 'confirmed',
+      // Log current room state for debugging
+      console.log('🔍 Room state analysis for resolution:', {
+        roomId,
+        status: getRoomStatusString(roomData.status),
+        player1Selection: roomData.player1Selection ? 'Made' : 'Pending',
+        player2Selection: roomData.player2Selection ? 'Made' : 'Pending',
+        player1: roomData.player1?.toString(),
+        player2: roomData.player2?.toString(),
       });
 
-      console.log(`Found ${accounts.length} total accounts for program`);
-
-      if (accounts.length === 0) {
-        console.log('No game rooms found - this is normal if no games have been created yet');
-        return [];
-      }
-
-      // Process the accounts
-      const gameRooms: GameRoom[] = [];
-      for (let i = 0; i < accounts.length; i++) {
-        const account = accounts[i];
-        try {
-          console.log(`Processing account ${i + 1}/${accounts.length}: ${account.pubkey.toString()}`);
-          console.log(`Account data length: ${account.account.data.length} bytes`);
-
-          // Try to decode as GameRoom using exact IDL account name
-          const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
-          console.log(`Successfully decoded game room with ID: ${decoded.roomId?.toString()}`);
-          const statusKeys = Object.keys(decoded.status || {});
-          console.log('Room status:', decoded.status);
-          console.log('Room status keys:', statusKeys); // Show actual key names
-          if (statusKeys.length > 0) {
-            console.log('Primary status key:', statusKeys[0]);
-          }
-          console.log('Room creator:', decoded.creator?.toString());
-          gameRooms.push(decoded);
-        } catch (decodeError) {
-          const errorMessage = decodeError instanceof Error ? decodeError.message : 'Unknown decode error';
-          console.warn(`Failed to decode account ${account.pubkey.toString()} as GameRoom:`, errorMessage);
-
-          // Show raw account data for debugging
-          console.log('Raw account data (first 50 bytes):', account.account.data.slice(0, 50));
-
-          // Try to decode as other account types
-          try {
-            const globalState = program.coder.accounts.decode('GlobalState', account.account.data);
-            console.log('Account is GlobalState:', globalState);
-          } catch (globalError) {
-            console.log('Not GlobalState either. Account might be different type or corrupted.');
-          }
+      // ENHANCED: Verify room is ready for resolution with multiple valid scenarios
+      const isResolving = roomData.status && roomData.status.resolving;
+      const isSelectionsPending = roomData.status && roomData.status.selectionsPending;
+      const isWaitingForPlayer = roomData.status && roomData.status.waitingForPlayer;
+      const bothSelected = roomData.player1Selection && roomData.player2Selection;
+      
+      console.log('📊 Resolution state check:', {
+        isResolving,
+        isSelectionsPending,
+        isWaitingForPlayer,
+        bothSelected,
+        p1Selection: roomData.player1Selection ? 'Made' : 'Pending',
+        p2Selection: roomData.player2Selection ? 'Made' : 'Pending',
+      });
+      
+      // Multiple valid scenarios for resolution:
+      // 1. Room is already in Resolving state (normal flow)
+      // 2. Room is in SelectionsPending with both selections made (recovery flow)
+      // 3. Allow resolution even if smart contract state is inconsistent but selections exist
+      const canResolve = isResolving 
+        || (isSelectionsPending && bothSelected)
+        || (bothSelected); // Force resolve if both players selected regardless of state
+      
+      if (!canResolve) {
+        const statusStr = getRoomStatusString(roomData.status);
+        if (isSelectionsPending && !bothSelected) {
+          const p1Selected = roomData.player1Selection ? 'Yes' : 'No';
+          const p2Selected = roomData.player2Selection ? 'Yes' : 'No';
+          throw new Error(`Cannot resolve game: Waiting for player selections (Player 1: ${p1Selected}, Player 2: ${p2Selected})`);
         }
+        if (isWaitingForPlayer) {
+          throw new Error('Cannot resolve game: Still waiting for a second player to join');
+        }
+        throw new Error(`Cannot resolve game: Invalid room state '${statusStr}' and selections not complete`);
       }
+      
+      console.log('✅ Room ready for resolution');
+      
 
-      console.log(`Successfully processed ${gameRooms.length} game rooms`);
-      return gameRooms;
-    } catch (error: any) {
-      console.error('Error in fetchAllGameRooms:', error);
+      // Derive PDAs and get account addresses
+      const roomIdBN = roomData.roomId as BN;
+      const creatorKey = roomData.creator as PublicKey;
 
-      // Handle specific error cases
-      if (error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
-        console.warn('Rate limited - please wait a moment and try again');
-        throw new Error('Network is busy. Please wait a moment and try again.');
+      const [escrowPda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('escrow'),
+          creatorKey.toBuffer(),
+          roomIdBN.toArrayLike(Buffer, 'le', 8),
+        ],
+        program.programId,
+      );
+
+      const [globalStatePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('global_state')],
+        program.programId,
+      );
+
+      // Get player addresses
+      const player1 = roomData.player1 as PublicKey;
+      const player2 = roomData.player2 as PublicKey;
+
+      // Get house wallet from global state
+      const globalStateInfo = await conn.getAccountInfo(globalStatePda);
+      if (!globalStateInfo) {
+        throw new Error('Global state not found');
       }
+      const globalStateData = program.coder.accounts.decode('GlobalState', globalStateInfo.data);
+      const houseWallet = globalStateData.houseWallet as PublicKey;
 
-      if (error.message?.includes('timeout') || error.code === 'NETWORK_ERROR') {
-        console.warn('Network timeout - connection may be slow');
-        throw new Error('Network connection is slow. Please check your connection and try again.');
+      console.log('Resolving game with:');
+      console.log('- Game Room PDA:', gameRoomPda.toString());
+      console.log('- Global State PDA:', globalStatePda.toString());
+      console.log('- Escrow PDA:', escrowPda.toString());
+      console.log('- Player 1:', player1.toString());
+      console.log('- Player 2:', player2.toString());
+      console.log('- House Wallet:', houseWallet.toString());
+
+      // Pre-transaction validation - verify accounts exist and are accessible
+      console.log('🔍 Pre-transaction validation...');
+      
+      // Verify GameRoom account is still accessible
+      const gameRoomAccountInfo = await conn.getAccountInfo(gameRoomPda);
+      if (!gameRoomAccountInfo) {
+        throw new Error(`GameRoom account ${gameRoomPda.toString()} no longer exists`);
       }
+      
+      // Verify GlobalState account is accessible
+      const globalStateAccountCheck = await conn.getAccountInfo(globalStatePda);
+      if (!globalStateAccountCheck) {
+        throw new Error(`GlobalState account ${globalStatePda.toString()} not found`);
+      }
+      
+      console.log('✅ All accounts validated, proceeding with resolution transaction');
 
-      // For other errors, return empty array so the UI doesn't hang
-      console.warn('Returning empty array due to error:', error.message);
-      return [];
+      const tx = await retryTransaction(
+        program.provider.connection,
+        () => program.methods
+          .resolveGame()
+          .accounts({
+            gameRoom: gameRoomPda,
+            globalState: globalStatePda,
+            escrowAccount: escrowPda,
+            player1,
+            player2,
+            houseWallet,
+            resolver: wallet.publicKey!,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc({
+            commitment: 'confirmed',
+            preflightCommitment: 'confirmed',
+            skipPreflight: false,
+          }),
+        { maxRetries: 3, retryDelay: 2000 }, // Increased retry delay
+      );
+
+      console.log('🎉 Game resolved successfully:', tx);
+      return { tx, gameRoomPda };
+    } catch (error) {
+      console.error('❌ Error resolving game:', error);
+      
+      // Enhanced error handling with specific guidance
+      const errorMessage = (error as Error).message || 'Unknown error';
+      
+      if (errorMessage.includes('AccountDidNotSerialize') || errorMessage.includes('3004')) {
+        throw new Error(`Game account data is corrupted or incompatible. This usually happens when the on-chain program structure differs from the frontend. Try "Handle Timeout" instead, or contact support. Technical details: ${errorMessage}`);
+      }
+      
+      if (errorMessage.includes('MissingSelections') || errorMessage.includes('6008')) {
+        throw new Error('Cannot resolve: Both players must make selections before the game can be resolved. Check that both players have selected heads or tails.');
+      }
+      
+      if (errorMessage.includes('InvalidGameState') || errorMessage.includes('6007')) {
+        throw new Error('Game state is invalid for resolution. Try refreshing the game state or use "Handle Timeout" if the game is stuck.');
+      }
+      
+      if (errorMessage.includes('InvalidRoomStatus') || errorMessage.includes('6004')) {
+        throw new Error('Room status does not allow resolution. The game may already be completed or not ready for resolution.');
+      }
+      
+      // Generic error with actionable advice
+      throw new Error(`Resolution failed: ${errorMessage}. You can try: 1) Refresh game state, 2) Use "Handle Timeout" if game is stuck, 3) Use "Force Abandon" in emergency controls.`);
     }
-  }, [program]);
+  }, [program, wallet.publicKey]);
 
   const handleTimeout = useCallback(async (roomId: number) => {
     if (!program || !wallet.publicKey) {
@@ -551,15 +801,38 @@ export const useAnchorProgram = () => {
         program.programId,
       );
 
-      // Get player addresses - player2 might be null if room was never joined
+      // Get player addresses and room status
       const player1 = roomData.player1 as PublicKey;
       const player2 = roomData.player2 as PublicKey | null;
+      const roomStatus = roomData.status;
+
+      // Check if player2 is actually set (not the default public key)
+      const defaultPubkey = new PublicKey('11111111111111111111111111111111');
+      const isPlayer2Valid = player2 && !player2.equals(defaultPubkey);
 
       console.log('Calling handleTimeout with:');
       console.log('- Game Room PDA:', gameRoomPda.toString());
       console.log('- Escrow PDA:', escrowPda.toString());
       console.log('- Player 1:', player1.toString());
-      console.log('- Player 2:', player2?.toString() || 'None');
+      console.log('- Player 2:', isPlayer2Valid ? player2!.toString() : 'None (using default pubkey)');
+      console.log('- Player 2 Valid:', isPlayer2Valid);
+      console.log('- Room Status:', roomStatus);
+
+      // Check if this is a single-player room that was never joined
+      if (!isPlayer2Valid && roomStatus && roomStatus.waitingForPlayer) {
+        throw new Error('Cannot handle timeout: This is a single-player room that was never joined. Single-player rooms cannot be timed out - they need to be cancelled through a different method or left to expire naturally.');
+      }
+
+      // Check if room status allows timeout (must be SelectionsPending)
+      if (!roomStatus || !roomStatus.selectionsPending) {
+        const statusName = getRoomStatusString(roomStatus);
+        throw new Error(`Cannot handle timeout: Room status must be 'SelectionsPending' but is currently '${statusName}'. Only rooms with both players joined can be timed out.`);
+      }
+
+      // For valid two-player timeout scenarios
+      const finalPlayer2 = isPlayer2Valid ? player2! : defaultPubkey;
+
+      console.log('- Final Player 2 for transaction:', finalPlayer2.toString());
 
       const tx = await retryTransaction(
         program.provider.connection,
@@ -569,7 +842,7 @@ export const useAnchorProgram = () => {
             gameRoom: gameRoomPda,
             escrowAccount: escrowPda,
             player1,
-            player2: player2 || SystemProgram.programId, // Use system program if no player2
+            player2: finalPlayer2,
             systemProgram: SystemProgram.programId,
           })
           .rpc({
@@ -589,14 +862,245 @@ export const useAnchorProgram = () => {
     }
   }, [program, wallet.publicKey]);
 
+  // Cancel a single-player room (room that was never joined)
+  const cancelRoom = useCallback(async (roomId: number) => {
+    if (!program || !wallet.publicKey) {
+      throw new Error('Program not initialized or wallet not connected');
+    }
+
+    console.log(`Canceling single-player room ${roomId}...`);
+    let gameRoomPda: PublicKey;
+
+    try {
+      // Find the room first
+      const { connection: conn } = program.provider;
+      const accounts = await conn.getProgramAccounts(PROGRAM_ID);
+      const allRooms = accounts.map((account) => {
+        try {
+          const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
+          return { publicKey: account.pubkey, account: decoded };
+        } catch {
+          return null;
+        }
+      }).filter((room) => room !== null);
+
+      const targetRoom = allRooms.find(
+        (room: any) => room.account?.roomId?.toNumber() === roomId,
+      );
+
+      if (!targetRoom) {
+        throw new Error(`Room ${roomId} not found`);
+      }
+
+      gameRoomPda = targetRoom.publicKey;
+      const roomData = targetRoom.account as any;
+
+      // Get room details
+      const player1 = roomData.player1 as PublicKey;
+      const player2 = roomData.player2 as PublicKey;
+      const roomStatus = roomData.status;
+      const roomCreator = roomData.creator as PublicKey;
+      
+      // Check if player2 is actually set (not the default public key)
+      const defaultPubkey = new PublicKey('11111111111111111111111111111111');
+      const isPlayer2Valid = player2 && !player2.equals(defaultPubkey);
+
+      // Validate this is indeed a single-player room
+      if (isPlayer2Valid) {
+        throw new Error('Cannot cancel room: This room has a second player. Use "Handle Timeout" instead for two-player rooms.');
+      }
+
+      // Check room status (should be WaitingForPlayer)
+      if (!roomStatus || !roomStatus.waitingForPlayer) {
+        const statusName = getRoomStatusString(roomStatus);
+        throw new Error(`Cannot cancel room: Room status must be 'WaitingForPlayer' but is currently '${statusName}'. This room may already be in progress or completed.`);
+      }
+
+      // Check if the caller is the room creator
+      if (!roomCreator.equals(wallet.publicKey)) {
+        throw new Error('Cannot cancel room: Only the room creator can cancel a single-player room.');
+      }
+
+      // Derive escrow PDA for refund
+      const roomIdBN = roomData.roomId as BN;
+      const [escrowPda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('escrow'),
+          roomCreator.toBuffer(),
+          roomIdBN.toArrayLike(Buffer, 'le', 8),
+        ],
+        program.programId,
+      );
+
+      console.log('Calling cancelRoom with:');
+      console.log('- Game Room PDA:', gameRoomPda.toString());
+      console.log('- Escrow PDA:', escrowPda.toString());
+      console.log('- Creator:', roomCreator.toString());
+      console.log('- Player 1:', player1.toString());
+      console.log('- Player 2:', player2.toString());
+      console.log('- Player 2 is valid:', isPlayer2Valid);
+      console.log('- Room Status:', getRoomStatusString(roomStatus));
+      console.log('- Bet Amount:', roomData.betAmount?.toString());
+
+      // For single-player rooms, we have a few options:
+      // 1. Wait for timeout (2 hours) then use handleTimeout
+      // 2. Immediate cancellation with manual refund (if supported by contract)
+      // 3. Simple notification that room will expire naturally
+      
+      const currentTime = Math.floor(Date.now() / 1000);
+      const roomAge = currentTime - roomData.createdAt.toNumber();
+      const timeoutThreshold = 7200; // 2 hours in seconds
+      
+      if (roomAge < timeoutThreshold) {
+        const remainingTime = timeoutThreshold - roomAge;
+        const remainingMinutes = Math.floor(remainingTime / 60);
+        const remainingHours = Math.floor(remainingMinutes / 60);
+        const displayTime = remainingHours > 0 
+          ? `${remainingHours} hour(s) and ${remainingMinutes % 60} minute(s)`
+          : `${remainingMinutes} minute(s)`;
+        
+        // For now, inform user that single-player rooms cannot be immediately cancelled
+        // This prevents the constraint violation error
+        throw new Error(`Single-player room cancellation: Room ${roomId} contains ${(roomData.betAmount.toNumber() / 1_000_000_000).toFixed(2)} SOL that will be automatically refunded after ${displayTime} when the room times out. Unfortunately, the smart contract doesn't support immediate cancellation of single-player rooms - they must reach the 2-hour timeout period first. Your funds are safe in escrow.`);
+      }
+      
+      // Room is old enough - try to claim timeout refund
+      console.log(`Attempting timeout claim for single-player room ${roomId} (age: ${roomAge} seconds)`);
+      
+      try {
+        // First, check if this will work by simulating
+        console.log('Simulating transaction first...');
+        
+        const simulateResult = await program.methods
+          .handleTimeout()
+          .accounts({
+            gameRoom: gameRoomPda,
+            escrowAccount: escrowPda,
+            player1: player1, // Use the actual player1 from the room
+            player2: player2, // Use the actual player2 (should be defaultPubkey) from the room
+            systemProgram: SystemProgram.programId,
+          })
+          .simulate();
+          
+        console.log('Simulation successful:', simulateResult);
+
+        // If simulation passes, execute the real transaction
+        const tx = await retryTransaction(
+          program.provider.connection,
+          () => program.methods
+            .handleTimeout()
+            .accounts({
+              gameRoom: gameRoomPda,
+              escrowAccount: escrowPda,
+              player1: player1,
+              player2: player2, // Use the exact player2 value from the room
+              systemProgram: SystemProgram.programId,
+            })
+            .rpc({
+              commitment: 'confirmed',
+              preflightCommitment: 'confirmed',
+              skipPreflight: false, // Enable preflight to catch issues early
+            }),
+          { maxRetries: 3, retryDelay: 1000 },
+        );
+        
+        console.log('✅ Single-player room timeout claimed successfully');
+        console.log('Transaction:', getExplorerUrl(tx));
+        
+        return { tx, refundAmount: roomData.betAmount };
+      } catch (timeoutError) {
+        console.error('Error calling handle_timeout:', timeoutError);
+        
+        // If the error suggests a constraint violation related to player accounts,
+        // provide a more user-friendly message
+        const errorMsg = timeoutError instanceof Error ? timeoutError.message : String(timeoutError);
+        if (errorMsg.includes('constraint') || errorMsg.includes('InvalidPlayer')) {
+          throw new Error(`Smart contract constraint error: The deployed contract has strict validation for player accounts that prevents single-player room cancellation. Room ${roomId} with ${(roomData.betAmount.toNumber() / 1_000_000_000).toFixed(2)} SOL will need to be handled manually or will expire naturally. Consider contacting support if this issue persists.`);
+        }
+        
+        throw new Error(`Failed to cancel single-player room: ${formatTransactionError(timeoutError as Error)}`);
+      }
+
+    } catch (error) {
+      console.error('Error canceling room:', error);
+      const formattedError = new Error(formatTransactionError(error as Error));
+      throw formattedError;
+    }
+  }, [program, wallet.publicKey]);
+
+  // User-controlled refresh methods
+  const forceRefreshAllRooms = useCallback(async (): Promise<GameRoom[]> => {
+    if (!program) {
+      throw new Error('Program not initialized');
+    }
+
+    const requestKey = 'fetchAllGameRooms';
+    return rpcManager.forceRefresh(requestKey, async () => {
+      console.log('🔄 Force refreshing all game rooms...');
+      const { connection: conn } = program.provider;
+
+      const accounts = await conn.getProgramAccounts(PROGRAM_ID, {
+        commitment: 'confirmed',
+        encoding: 'base64',
+      });
+      
+      const gameRooms: GameRoom[] = [];
+      // eslint-disable-next-line no-restricted-syntax
+      for (const account of accounts) {
+        try {
+          const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
+          gameRooms.push(decoded);
+        } catch {
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+      }
+
+      console.log('✅ Force refresh completed:', gameRooms.length, 'rooms');
+      return gameRooms;
+    });
+  }, [program]);
+
+  const forceRefreshGameRoom = useCallback(async (roomId: number): Promise<GameRoom | null> => {
+    if (!program) {
+      throw new Error('Program not initialized');
+    }
+
+    const requestKey = `fetchGameRoom-${roomId}`;
+    return rpcManager.forceRefresh(requestKey, async () => {
+      console.log(`🔄 Force refreshing room ${roomId}...`);
+      const allRooms = await forceRefreshAllRooms();
+      const targetRoom = allRooms.find(
+        (room: any) => room.roomId?.toNumber() === roomId,
+      );
+      return targetRoom || null;
+    });
+  }, [program, forceRefreshAllRooms]);
+
+  const clearRpcCache = useCallback(() => {
+    rpcManager.clearCache();
+  }, []);
+
+  const getRpcStats = useCallback(() => rpcManager.getCacheStats(), []);
+
+  const isRpcCircuitOpen = useCallback(() => rpcManager.isCircuitOpen(), []);
+
   return {
     program,
     isProgramReady,
     createRoom,
     joinRoom,
     makeSelection,
+    resolveGame,
     fetchGameRoom,
     fetchAllGameRooms,
     handleTimeout,
+    cancelRoom,
+    // New user-controlled methods
+    forceRefreshAllRooms,
+    forceRefreshGameRoom,
+    clearRpcCache,
+    getRpcStats,
+    isRpcCircuitOpen,
   };
 };

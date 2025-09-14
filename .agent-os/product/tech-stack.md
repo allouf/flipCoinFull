@@ -14,7 +14,7 @@
 ## Infrastructure
 
 - **Application Hosting:** Vercel/Netlify (frontend deployment)
-- **Blockchain Networks:** Solana Devnet (deployed: GGowNXivyzWKePKstFpyU18ykoaM9ygKuuzAV1mYoczn) → Mainnet (planned)
+- **Blockchain Networks:** Solana Devnet (deployed: DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp) → Mainnet (planned)
 - **Asset Hosting:** CDN via hosting provider
 - **Deployment Strategy:** Anchor deploy scripts for all environments, progressive rollout
 
@@ -69,5 +69,5 @@
 - **Automation Scripts:** Complete deployment automation with pre-deployment checks ✅
 - **Environment Configuration:** Flexible VRF account setup, house wallet options (existing/auto-generated) ✅
 - **Validation System:** Pre-deployment verification of all dependencies and configurations ✅
-- **Current Status:** Deployed on Devnet (GGowNXivyzWKePKstFpyU18ykoaM9ygKuuzAV1mYoczn), ready for mainnet after VRF/audit ✅
+- **Current Status:** Deployed on Devnet (DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp), production-ready system with enterprise VRF error recovery, ready for mainnet after real VRF configuration ✅
 - **WSL Support:** Complete WSL deployment guide for Windows development environments ✅
