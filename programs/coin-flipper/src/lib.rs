@@ -11,6 +11,22 @@ pub const MIN_BET_AMOUNT: u64 = 10_000_000;
 pub const MAX_BET_AMOUNT: u64 = 1_000_000_000_000;
 /// Maximum house fee allowed (10% = 1000 basis points)
 pub const MAX_HOUSE_FEE_BPS: u16 = 1000;
+/// Resolution fee per player (0.001 SOL each = 0.002 SOL total)
+/// This covers the cost of the complex auto-resolution transaction with multiple CPI calls
+pub const RESOLUTION_FEE_PER_PLAYER: u64 = 1_000_000;
+/// Room expiry timeout (2 hours in seconds)
+pub const ROOM_EXPIRY_SECONDS: i64 = 7200;
+/// Selection timeout (10 minutes in seconds)
+pub const SELECTION_TIMEOUT_SECONDS: i64 = 600;
+
+/// Helper function to validate escrow has sufficient balance before transfers
+fn validate_escrow_balance(escrow_account: &AccountInfo, required_amount: u64) -> Result<()> {
+    require!(
+        escrow_account.lamports() >= required_amount,
+        ErrorCode::InsufficientEscrowFunds
+    );
+    Ok(())
+}
 
 #[program]
 pub mod coin_flipper {
@@ -63,7 +79,8 @@ pub mod coin_flipper {
         let room = &mut ctx.accounts.game_room;
         let clock = Clock::get()?;
         
-        // Transfer bet amount from creator to escrow PDA
+        // Transfer bet amount + resolution fee share from creator to escrow PDA
+        let total_contribution = bet_amount + RESOLUTION_FEE_PER_PLAYER;
         let transfer_ctx = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
             Transfer {
@@ -71,7 +88,7 @@ pub mod coin_flipper {
                 to: ctx.accounts.escrow_account.to_account_info(),
             }
         );
-        transfer(transfer_ctx, bet_amount)?;
+        transfer(transfer_ctx, total_contribution)?;
         
         // Initialize room state with secure defaults
         room.room_id = room_id;
@@ -85,12 +102,12 @@ pub mod coin_flipper {
         room.created_at = clock.unix_timestamp;
         room.vrf_result = None;
         room.winner = None;
-        room.total_pot = bet_amount; // Only creator's bet initially
+        room.total_pot = bet_amount; // Only creator's bet initially (resolution fees separate)
         room.bump = ctx.bumps.game_room;
         room.escrow_bump = ctx.bumps.escrow_account;
         
-        msg!("Room {} created - Bet: {} lamports, Creator: {}", 
-            room_id, bet_amount, ctx.accounts.creator.key());
+        msg!("Room {} created - Bet: {} lamports (+ {} resolution fee), Creator: {}", 
+            room_id, bet_amount, RESOLUTION_FEE_PER_PLAYER, ctx.accounts.creator.key());
         
         Ok(())
     }
@@ -120,9 +137,10 @@ pub mod coin_flipper {
         
         // Check for room expiry (optional cleanup mechanism)
         let room_age = clock.unix_timestamp - room.created_at;
-        require!(room_age < 7200, ErrorCode::RoomExpired); // 2 hours max
+        require!(room_age < ROOM_EXPIRY_SECONDS, ErrorCode::RoomExpired);
         
-        // Transfer matching bet amount from joiner to escrow PDA
+        // Transfer matching bet amount + resolution fee share from joiner to escrow PDA
+        let total_contribution = room.bet_amount + RESOLUTION_FEE_PER_PLAYER;
         let transfer_ctx = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
             Transfer {
@@ -130,7 +148,7 @@ pub mod coin_flipper {
                 to: ctx.accounts.escrow_account.to_account_info(),
             }
         );
-        transfer(transfer_ctx, room.bet_amount)?;
+        transfer(transfer_ctx, total_contribution)?;
         
         // Update room state - now both players have contributed
         room.player_2 = ctx.accounts.joiner.key();
@@ -138,8 +156,8 @@ pub mod coin_flipper {
         room.total_pot = room.bet_amount.checked_mul(2)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         
-        msg!("Player {} joined room {} - Total pot: {} lamports", 
-            ctx.accounts.joiner.key(), room.room_id, room.total_pot);
+        msg!("Player {} joined room {} - Total pot: {} lamports (+ {} total resolution fees)", 
+            ctx.accounts.joiner.key(), room.room_id, room.total_pot, RESOLUTION_FEE_PER_PLAYER * 2);
         
         Ok(())
     }
@@ -178,29 +196,25 @@ pub mod coin_flipper {
             return Err(ErrorCode::NotInRoom.into());
         }
         
-        // If both players have selected, move to resolving state
+        // If both players have selected, auto-resolve immediately
         if room.player_1_selection.is_some() && room.player_2_selection.is_some() {
-            room.status = RoomStatus::Resolving;
-            msg!("Both players selected - Room {} ready for resolution", room.room_id);
+            msg!("Both players selected - Auto-resolving room {}", room.room_id);
+            
+            // Auto-resolve the game immediately
+            Self::auto_resolve_game(ctx, room)?;
         }
         
         Ok(())
     }
 
-    /// Resolve the game and distribute payouts
-    /// Uses secure pseudo-random generation and handles all edge cases
-    pub fn resolve_game(ctx: Context<ResolveGame>) -> Result<()> {
-        let room = &mut ctx.accounts.game_room;
-        let global_state = &ctx.accounts.global_state;
+    /// Auto-resolve game immediately when both players have made selections
+    /// This eliminates the need for a manual resolve transaction
+    fn auto_resolve_game(ctx: Context<MakeSelection>, room: &mut GameRoom) -> Result<()> {
+        // Get mutable reference to global state early to avoid borrow conflicts
+        let global_state = &mut ctx.accounts.global_state;
         let clock = Clock::get()?;
         
-        // Validate game can be resolved
-        require!(
-            room.status == RoomStatus::Resolving,
-            ErrorCode::InvalidRoomStatus
-        );
-        
-        // Ensure both players made selections
+        // Ensure both players made selections (should always be true when called)
         let (p1_selection, p2_selection) = match (room.player_1_selection, room.player_2_selection) {
             (Some(p1), Some(p2)) => (p1, p2),
             _ => return Err(ErrorCode::MissingSelections.into()),
@@ -210,7 +224,8 @@ pub mod coin_flipper {
         let entropy = clock.unix_timestamp as u64
             ^ clock.slot
             ^ clock.epoch
-            ^ room.room_id;
+            ^ room.room_id
+            ^ ctx.accounts.player.key().to_bytes()[0] as u64;
         
         // Use a more sophisticated PRNG approach
         let mut seed = entropy;
@@ -228,18 +243,74 @@ pub mod coin_flipper {
         vrf_bytes[8..16].copy_from_slice(&seed.to_le_bytes());
         room.vrf_result = Some(vrf_bytes);
         
-        // Determine the winner
-        let (winner, winner_account) = if p1_selection == coin_result {
-            (Some(room.player_1), &ctx.accounts.player_1)
+        msg!("Auto-resolve: Coin result {:?}, P1 choice {:?}, P2 choice {:?}", 
+             coin_result, p1_selection, p2_selection);
+        
+        // Handle tie scenario (both players chose the same side)
+        if p1_selection == p2_selection {
+            msg!("Tie scenario detected: Both players chose {:?}. Refunding bets.", p1_selection);
+            
+            // In a tie, refund each player their bet + resolution fee share
+            let refund_per_player = room.bet_amount + RESOLUTION_FEE_PER_PLAYER;
+            
+            // Validate escrow has sufficient funds for both refunds
+            let total_refund = refund_per_player * 2;
+            validate_escrow_balance(&ctx.accounts.escrow_account, total_refund)?;
+            
+            // Create escrow PDA seeds for signing transfers
+            let room_id_bytes = room.room_id.to_le_bytes();
+            let creator_key = room.creator;
+            let escrow_seeds = &[
+                b"escrow",
+                creator_key.as_ref(),
+                room_id_bytes.as_ref(),
+                &[room.escrow_bump],
+            ];
+            let escrow_signer = &[&escrow_seeds[..]];
+            
+            // Refund Player 1
+            let p1_refund_ctx = CpiContext::new_with_signer(
+                ctx.accounts.system_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.escrow_account.to_account_info(),
+                    to: ctx.accounts.player_1.to_account_info(),
+                },
+                escrow_signer,
+            );
+            transfer(p1_refund_ctx, refund_per_player)?;
+            
+            // Refund Player 2
+            let p2_refund_ctx = CpiContext::new_with_signer(
+                ctx.accounts.system_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.escrow_account.to_account_info(),
+                    to: ctx.accounts.player_2.to_account_info(),
+                },
+                escrow_signer,
+            );
+            transfer(p2_refund_ctx, refund_per_player)?;
+            
+            // Mark room as completed with no winner (tie)
+            room.status = RoomStatus::Completed;
+            room.winner = None;
+            
+            msg!("Tie resolved - Both players refunded {} lamports each", refund_per_player);
+            
+            return Ok(());
+        }
+        
+        // Normal game resolution - determine winner
+        let (winner, winner_account, loser_account) = if p1_selection == coin_result {
+            (Some(room.player_1), &ctx.accounts.player_1, &ctx.accounts.player_2)
         } else if p2_selection == coin_result {
-            (Some(room.player_2), &ctx.accounts.player_2)
+            (Some(room.player_2), &ctx.accounts.player_2, &ctx.accounts.player_1) 
         } else {
             // This should never happen as one player must be correct
             return Err(ErrorCode::InvalidGameState.into());
         };
         
         // Calculate payouts with overflow protection
-        let total_pot = room.total_pot;
+        let total_pot = room.total_pot; // This is just the bet amounts (2 * bet_amount)
         let house_fee = (total_pot as u128)
             .checked_mul(global_state.house_fee_bps as u128)
             .ok_or(ErrorCode::ArithmeticOverflow)?
@@ -249,6 +320,11 @@ pub mod coin_flipper {
         let winner_payout = total_pot
             .checked_sub(house_fee)
             .ok_or(ErrorCode::ArithmeticUnderflow)?;
+        
+        // Validate escrow has sufficient funds for all transfers
+        let total_house_collection = house_fee + (RESOLUTION_FEE_PER_PLAYER * 2);
+        let total_required = winner_payout + total_house_collection;
+        validate_escrow_balance(&ctx.accounts.escrow_account, total_required)?;
         
         // Create escrow PDA seeds for signing transfers
         let room_id_bytes = room.room_id.to_le_bytes();
@@ -274,8 +350,8 @@ pub mod coin_flipper {
             transfer(winner_transfer_ctx, winner_payout)?;
         }
         
-        // Transfer house fee if applicable
-        if house_fee > 0 {
+        // Transfer house fee from bet winnings + resolution fees to house wallet
+        if total_house_collection > 0 {
             let house_transfer_ctx = CpiContext::new_with_signer(
                 ctx.accounts.system_program.to_account_info(),
                 Transfer {
@@ -284,28 +360,35 @@ pub mod coin_flipper {
                 },
                 escrow_signer,
             );
-            transfer(house_transfer_ctx, house_fee)?;
+            transfer(house_transfer_ctx, total_house_collection)?;
         }
         
-        // Update room and global state
+        // Update room state
         room.winner = winner;
         room.status = RoomStatus::Completed;
         
-        // Update statistics atomically
-        let global_state = &mut ctx.accounts.global_state;
+        // Update global statistics
         global_state.total_games = global_state.total_games.saturating_add(1);
         global_state.total_volume = global_state.total_volume.saturating_add(total_pot);
         
         msg!(
-            "Game resolved - Room: {}, Winner: {}, Coin: {:?}, Payout: {}, Fee: {}",
+            "Game auto-resolved - Room: {}, Winner: {}, Coin: {:?}, Payout: {}, House fees: {}",
             room.room_id,
             winner.unwrap(),
             coin_result,
             winner_payout,
-            house_fee
+            total_house_collection
         );
         
         Ok(())
+    }
+
+    /// DEPRECATED: Manual resolution is no longer needed
+    /// Games now auto-resolve when both players make selections
+    pub fn resolve_game(_ctx: Context<ResolveGame>) -> Result<()> {
+        // DEPRECATED: Manual resolution is no longer needed
+        // Games now auto-resolve when both players make selections
+        Err(ErrorCode::InvalidRoomStatus.into())
     }
 
     /// Handle timeout scenarios by refunding both players
@@ -318,11 +401,11 @@ pub mod coin_flipper {
         let timeout_threshold = match room.status {
             RoomStatus::WaitingForPlayer => {
                 // Room expires after 2 hours if no one joins
-                room.created_at + 7200
+                room.created_at + ROOM_EXPIRY_SECONDS
             },
             RoomStatus::SelectionsPending => {
-                // Give players reasonable time to make selections (10 minutes)
-                room.created_at + 600
+                // Give players reasonable time to make selections
+                room.created_at + SELECTION_TIMEOUT_SECONDS
             },
             _ => return Err(ErrorCode::InvalidTimeoutCondition.into()),
         };
@@ -331,6 +414,15 @@ pub mod coin_flipper {
             clock.unix_timestamp > timeout_threshold,
             ErrorCode::TimeoutNotReached
         );
+        
+        // Calculate total refund needed and validate escrow balance
+        let refund_amount = room.bet_amount + RESOLUTION_FEE_PER_PLAYER;
+        let total_refund_needed = if room.player_2 != Pubkey::default() {
+            refund_amount * 2  // Both players need refund
+        } else {
+            refund_amount      // Only creator needs refund
+        };
+        validate_escrow_balance(&ctx.accounts.escrow_account, total_refund_needed)?;
         
         // Create escrow PDA seeds for signing
         let room_id_bytes = room.room_id.to_le_bytes();
@@ -343,8 +435,7 @@ pub mod coin_flipper {
         ];
         let escrow_signer = &[&escrow_seeds[..]];
         
-        // Refund creator (player 1) their bet
-        let refund_amount = room.bet_amount;
+        // Refund creator (player 1) their bet + resolution fee share
         let p1_transfer_ctx = CpiContext::new_with_signer(
             ctx.accounts.system_program.to_account_info(),
             Transfer {
@@ -355,7 +446,7 @@ pub mod coin_flipper {
         );
         transfer(p1_transfer_ctx, refund_amount)?;
         
-        // Refund player 2 if they joined
+        // Refund player 2 if they joined (bet + resolution fee share)
         if room.player_2 != Pubkey::default() {
             let p2_transfer_ctx = CpiContext::new_with_signer(
                 ctx.accounts.system_program.to_account_info(),
@@ -366,6 +457,9 @@ pub mod coin_flipper {
                 escrow_signer,
             );
             transfer(p2_transfer_ctx, refund_amount)?;
+        } else {
+            // If player 2 never joined, creator gets full refund including their resolution fee
+            // This is already handled above as refund_amount includes resolution fee
         }
         
         // Mark room as cancelled
@@ -606,7 +700,44 @@ pub struct MakeSelection<'info> {
     )]
     pub game_room: Account<'info, GameRoom>,
     
+    #[account(
+        mut,
+        seeds = [b"global_state"],
+        bump = global_state.bump
+    )]
+    pub global_state: Account<'info, GlobalState>,
+    
+    /// CHECK: Escrow PDA holding game funds
+    #[account(
+        mut,
+        seeds = [b"escrow", game_room.creator.as_ref(), &game_room.room_id.to_le_bytes()],
+        bump = game_room.escrow_bump
+    )]
+    pub escrow_account: AccountInfo<'info>,
+    
+    /// CHECK: Player 1 for potential payout
+    #[account(
+        mut,
+        constraint = player_1.key() == game_room.player_1 @ ErrorCode::InvalidPlayer
+    )]
+    pub player_1: AccountInfo<'info>,
+    
+    /// CHECK: Player 2 for potential payout
+    #[account(
+        mut,
+        constraint = player_2.key() == game_room.player_2 @ ErrorCode::InvalidPlayer
+    )]
+    pub player_2: AccountInfo<'info>,
+    
+    /// CHECK: House wallet for fee collection
+    #[account(
+        mut,
+        constraint = house_wallet.key() == global_state.house_wallet @ ErrorCode::InvalidHouseWallet
+    )]
+    pub house_wallet: AccountInfo<'info>,
+    
     pub player: Signer<'info>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -758,4 +889,7 @@ pub enum ErrorCode {
     
     #[msg("Arithmetic underflow occurred")]
     ArithmeticUnderflow,
+    
+    #[msg("Escrow account has insufficient funds")]
+    InsufficientEscrowFunds,
 }
