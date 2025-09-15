@@ -427,19 +427,56 @@ export const useAnchorProgram = () => {
       throw new Error(`Failed to validate room state: ${error}`);
     }
 
+    // Derive global state PDA
+    const [globalStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('global_state')],
+      PROGRAM_ID,
+    );
+
     // Try object-style enum variant (Borsh format)
     const coinSide = selection === 'heads' ? { heads: {} } : { tails: {} };
     console.log('Making selection with coinSide:', coinSide, 'for room:', roomId);
     console.log('CoinSide object keys:', Object.keys(coinSide));
 
     try {
+      // Get room data to extract required account addresses
+      const room = await fetchGameRoom(roomId, true);
+      if (!room) {
+        throw new Error(`Room ${roomId} not found for selection`);
+      }
+
+      // Derive escrow PDA
+      const [escrowPda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('escrow'),
+          (room as any).creator.toBuffer(),
+          new BN(roomId).toArrayLike(Buffer, 'le', 8),
+        ],
+        PROGRAM_ID,
+      );
+
+      // Get global state to find house wallet
+      const { connection: conn } = program.provider;
+      const globalStateInfo = await conn.getAccountInfo(globalStatePda);
+      if (!globalStateInfo) {
+        throw new Error('Global state account not found');
+      }
+      const globalStateData = program.coder.accounts.decode('GlobalState', globalStateInfo.data);
+      const houseWallet = globalStateData.houseWallet as PublicKey;
+
       const tx = await retryTransaction(
         program.provider.connection,
         () => program.methods
           .makeSelection(coinSide)
           .accounts({
             gameRoom: gameRoomPda,
+            globalState: globalStatePda,
+            escrowAccount: escrowPda,
+            player1: (room as any).player1,
+            player2: (room as any).player2,
+            houseWallet: houseWallet,
             player: wallet.publicKey!,
+            systemProgram: SystemProgram.programId,
           })
           .rpc({
             commitment: 'confirmed',
@@ -500,10 +537,10 @@ export const useAnchorProgram = () => {
       console.log(`✅ Successfully processed ${gameRooms.length} game rooms`);
       return gameRooms;
     }, {
-      ttl: userInitiated ? 30000 : 120000, // 30s for user actions, 2m for background
+      ttl: userInitiated ? 8000 : 15000, // 8s for user actions, 15s for background - much more responsive
       priority,
       userInitiated,
-      useStale: !userInitiated, // Allow stale data for non-user actions
+      useStale: false, // Never use stale data for game rooms - too critical for real-time updates
     });
   }, [program]);
 
@@ -527,10 +564,10 @@ export const useAnchorProgram = () => {
 
         return targetRoom;
       }, {
-        ttl: userInitiated ? 15000 : 60000, // 15s for user actions, 1m otherwise
+        ttl: userInitiated ? 2000 : 3000, // 2s for user actions, 3s for background - extremely responsive
         priority: userInitiated ? 'high' : 'normal',
         userInitiated,
-        useStale: !userInitiated,
+        useStale: false, // Never use stale data for game room updates - too critical
       });
     } catch (error) {
       console.error('Error fetching game room:', error);

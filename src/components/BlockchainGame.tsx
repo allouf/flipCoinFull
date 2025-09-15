@@ -6,6 +6,7 @@ import RoomBrowser from './RoomBrowser';
 import RefundManager from './RefundManager';
 import AboutGame from './AboutGame';
 import CountdownTimer from './CountdownTimer';
+import GameNotifications from './GameNotifications';
 
 const getJoinButtonTitle = (connected: boolean, roomId: string): string => {
   if (!connected) return 'Please connect your wallet first';
@@ -54,6 +55,8 @@ export const BlockchainGame: React.FC = () => {
     loading,
     error,
     setError,
+    notifications,
+    dismissNotification,
     createRoom,
     joinRoom,
     rejoinRoom,
@@ -274,8 +277,13 @@ export const BlockchainGame: React.FC = () => {
   }
 
   return (
-    <div className="glass-card p-8">
-      <h2 className="text-2xl font-bold mb-6">On-Chain Coin Flip</h2>
+    <>
+      <GameNotifications 
+        notifications={notifications} 
+        onDismiss={dismissNotification}
+      />
+      <div className="glass-card p-8">
+        <h2 className="text-2xl font-bold mb-6">On-Chain Coin Flip</h2>
 
       {error && (
         <div className="alert alert-error mb-4">
@@ -975,9 +983,29 @@ export const BlockchainGame: React.FC = () => {
       {gameState.gameStatus === 'completed' && (
         <div className="text-center py-8">
           <div className="text-4xl mb-4">
-            {gameState.winner?.includes('won') ? '🎉' : '😔'}
+            {gameState.winner?.includes('won') ? '🎉' : 
+             gameState.winner?.includes('Tie') ? '🤝' : '😔'}
           </div>
           <p className="text-2xl font-bold mb-4">{gameState.winner}</p>
+          
+          {/* Explanation for ties/refunds */}
+          {gameState.winner?.includes('Tie') && (
+            <div className="mb-6 p-4 bg-info/10 border border-info/20 rounded-lg max-w-md mx-auto">
+              <h4 className="font-semibold text-info mb-2">💰 Automatic Refunds Processed</h4>
+              <p className="text-sm text-base-content/80">
+                Since both players chose the same side, the smart contract automatically refunded:
+              </p>
+              <ul className="text-sm text-base-content/70 mt-2 space-y-1">
+                <li>✅ Your bet: {gameState.betAmount} SOL</li>
+                <li>✅ Your resolution fee: 0.001 SOL</li>
+                <li>✅ Total refunded: {(gameState.betAmount + 0.001).toFixed(3)} SOL</li>
+              </ul>
+              <p className="text-xs text-base-content/60 mt-3">
+                💡 No action needed - funds were returned to your wallet automatically!
+              </p>
+            </div>
+          )}
+          
           <button
             type="button"
             onClick={resetGame}
@@ -1064,6 +1092,7 @@ export const BlockchainGame: React.FC = () => {
           </a>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };

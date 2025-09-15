@@ -4,6 +4,7 @@ import {
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useAnchorProgram } from './useAnchorProgram';
 import { getExplorerUrl } from '../config/program';
+import type { GameNotification } from '../components/GameNotifications';
 
 export interface GameState {
   roomId: number | null;
@@ -58,9 +59,28 @@ export const useCoinFlipper = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<GameNotification[]>([]);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const userWantsToLeaveRef = useRef(false); // Track user intent to leave
   const abandonedRoomRef = useRef<number | null>(null); // Track abandoned room ID
+
+  // Notification management
+  const addNotification = useCallback((notification: Omit<GameNotification, 'id'>) => {
+    const newNotification: GameNotification = {
+      ...notification,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      duration: notification.duration ?? 5000, // Default 5 seconds
+    };
+    setNotifications(prev => [...prev, newNotification]);
+  }, []);
+
+  const dismissNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
 
   // Intelligent game state update that uses cached data efficiently
   const updateGameState = useCallback(async (roomId: number, userInitiated = false) => {
@@ -139,8 +159,12 @@ export const useCoinFlipper = () => {
       } else if (room.status && 'completed' in room.status) {
         gameStatus = 'completed';
         if (room.winner) {
+          // Game has a winner - determine if current player won or lost
           const isWinner = room.winner.toString() === publicKey.toString();
           winner = isWinner ? 'You won!' : 'You lost!';
+        } else {
+          // No winner declared - this means it was a tie (both players chose same side)
+          winner = 'Tie! Both players chose the same side - bets refunded';
         }
       } else if (room.status && 'cancelled' in room.status) {
         gameStatus = 'completed';
@@ -162,12 +186,48 @@ export const useCoinFlipper = () => {
           isStale: false,
         };
 
-        // Log state transitions for debugging
+        // Log state transitions and send notifications
         if (prev && prev.gameStatus !== gameStatus) {
           console.log(`🎯 Game State Transition: ${prev.gameStatus} → ${gameStatus} (Room: ${roomId})`);
-          if (winner) {
+          
+          // Send notifications for important state changes
+          if (prev.gameStatus === 'waiting' && gameStatus === 'selecting') {
+            addNotification({
+              type: 'info',
+              title: 'Player Joined!',
+              message: 'Another player has joined the game. Make your selection!',
+              duration: 5000,
+            });
+          } else if (prev.gameStatus === 'selecting' && gameStatus === 'resolving') {
+            addNotification({
+              type: 'info',
+              title: 'Both Players Selected!',
+              message: 'Game is now resolving automatically...',
+              duration: 4000,
+            });
+          } else if (prev.gameStatus !== 'completed' && gameStatus === 'completed') {
+            const notificationType = winner?.includes('won') ? 'success' : winner?.includes('Tie') ? 'info' : 'warning';
+            addNotification({
+              type: notificationType,
+              title: 'Game Complete!',
+              message: winner || 'Game has ended',
+              duration: 8000, // Longer for final result
+            });
+          }
+          
+          if (winner && gameStatus === 'completed') {
             console.log(`🏆 Game Result: ${winner}`);
           }
+        }
+        
+        // Also notify on opponent selection change
+        if (prev && prev.opponentSelection !== opponentSelection && opponentSelection) {
+          addNotification({
+            type: 'info',
+            title: 'Opponent Selected!',
+            message: 'Your opponent has made their choice. Waiting for auto-resolution...',
+            duration: 4000,
+          });
         }
 
         return newState;
@@ -211,26 +271,38 @@ export const useCoinFlipper = () => {
       }
     }
 
-    // Enhanced background refresh for resolving games with user feedback
+    // Enhanced background refresh for all active game states
     if (
       gameState.roomId
-      && gameState.gameStatus === 'resolving'
+      && (gameState.gameStatus === 'resolving' || gameState.gameStatus === 'waiting' || gameState.gameStatus === 'selecting')
       && !isRpcCircuitOpen()
       && !userWantsToLeaveRef.current
     ) {
       console.log(
-        '🔄 Starting intelligent background refresh for resolving game:',
+        `🔄 Starting intelligent background refresh for ${gameState.gameStatus} game:`,
         gameState.roomId,
       );
 
       let refreshAttempts = 0;
       const maxRefreshAttempts = 12; // 6 minutes of attempts
 
-      // Progressive refresh intervals: more frequent initially, then slower
+      // Aggressive refresh intervals for instant auto-resolution
       const getRefreshInterval = (attempt: number) => {
-        if (attempt < 3) return 15000; // First 3 attempts every 15 seconds
-        if (attempt < 6) return 30000; // Next 3 attempts every 30 seconds
-        return 60000; // After that, every minute
+        if (gameState.gameStatus === 'waiting') {
+          // Frequent for waiting - detect when player joins
+          if (attempt < 10) return 3000; // First 10 attempts every 3 seconds
+          if (attempt < 20) return 5000; // Next 10 attempts every 5 seconds
+          return 10000; // After that, every 10 seconds
+        } else if (gameState.gameStatus === 'selecting') {
+          // VERY frequent for selecting - detect opponent selections instantly
+          if (attempt < 15) return 1500; // First 15 attempts every 1.5 seconds
+          if (attempt < 25) return 3000; // Next 10 attempts every 3 seconds
+          return 5000; // After that, every 5 seconds
+        }
+        // For resolving games - very fast to catch auto-resolution
+        if (attempt < 20) return 1000; // First 20 attempts every 1 second!!
+        if (attempt < 40) return 2000; // Next 20 attempts every 2 seconds
+        return 5000; // After that, every 5 seconds
       };
 
       const doBackgroundRefresh = async () => {
@@ -250,15 +322,24 @@ export const useCoinFlipper = () => {
             console.log(`🔄 Background refresh attempt ${refreshAttempts + 1}/${maxRefreshAttempts}`);
             await updateGameState(gameState.roomId, false);
 
-            // Check if game has progressed to completed state
+            // Check if game has progressed to next state
             const room = await fetchGameRoom(gameState.roomId, false);
-            if (room && room.status && 'completed' in room.status) {
-              console.log('🎉 Game completed - stopping background refresh');
-              if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
+            if (room) {
+              if (gameState.gameStatus === 'waiting' && room.status && 'selectionsPending' in room.status) {
+                console.log('🎉 Player joined - stopping background refresh for waiting state');
+                if (pollingIntervalRef.current) {
+                  clearInterval(pollingIntervalRef.current);
+                  pollingIntervalRef.current = null;
+                }
+                return;
+              } else if (room.status && 'completed' in room.status) {
+                console.log('🎉 Game completed - stopping background refresh');
+                if (pollingIntervalRef.current) {
+                  clearInterval(pollingIntervalRef.current);
+                  pollingIntervalRef.current = null;
+                }
+                return;
               }
-              return;
             }
           } catch (err) {
             console.warn(`⚠️ Background refresh attempt ${refreshAttempts + 1} failed:`, err);
@@ -291,8 +372,10 @@ export const useCoinFlipper = () => {
         pollingIntervalRef.current = setTimeout(doBackgroundRefresh, getRefreshInterval(refreshAttempts));
       };
 
-      // Start the first refresh
-      pollingIntervalRef.current = setTimeout(doBackgroundRefresh, 15000); // First check after 15 seconds
+      // Start the first refresh - very quick for all active states
+      const initialDelay = gameState.gameStatus === 'selecting' ? 1000 : 
+                          gameState.gameStatus === 'waiting' ? 2000 : 3000; // 1s for selecting, 2s for waiting, 3s for resolving
+      pollingIntervalRef.current = setTimeout(doBackgroundRefresh, initialDelay);
     }
 
     // Cleanup on unmount or when game ends
@@ -518,6 +601,14 @@ export const useCoinFlipper = () => {
         gameStatus = 'resolving';
       } else if (room.status && 'completed' in room.status) {
         gameStatus = 'completed';
+        if (room.winner) {
+          // Game has a winner - determine if current player won or lost
+          const isWinner = room.winner.toString() === publicKey.toString();
+          winner = isWinner ? 'You won!' : 'You lost!';
+        } else {
+          // No winner declared - this means it was a tie (both players chose same side)
+          winner = 'Tie! Both players chose the same side - bets refunded';
+        }
       } else if (room.status && 'cancelled' in room.status) {
         gameStatus = 'completed';
         winner = 'Game was cancelled - funds refunded';
@@ -530,7 +621,7 @@ export const useCoinFlipper = () => {
         playerSelection,
         opponentSelection,
         gameStatus,
-        winner: winner || (room.winner ? 'Game completed' : null),
+        winner,
         txSignature: null, // No new transaction for rejoining
         selectionDeadline,
         lastUpdated: Date.now(),
@@ -1231,6 +1322,11 @@ export const useCoinFlipper = () => {
     loading,
     error,
     setError,
+    // Notifications
+    notifications,
+    addNotification,
+    dismissNotification,
+    clearNotifications,
     createRoom: handleCreateRoom,
     joinRoom: handleJoinRoom,
     rejoinRoom: handleRejoinRoom,
