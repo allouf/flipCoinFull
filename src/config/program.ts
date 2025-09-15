@@ -8,7 +8,7 @@
 import { PublicKey } from '@solana/web3.js';
 
 // Deployed Program ID on Solana Devnet (from Codespaces)
-export const PROGRAM_ID = new PublicKey('DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp');
+export const PROGRAM_ID = new PublicKey('4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM');
 
 // Program configuration
 export const PROGRAM_CONFIG = {

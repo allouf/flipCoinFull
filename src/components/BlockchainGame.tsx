@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useCoinFlipper } from '../hooks/useCoinFlipper';
+import { RESOLUTION_FEE_PER_PLAYER } from '../config/constants';
 import RoomBrowser from './RoomBrowser';
 import RefundManager from './RefundManager';
 import AboutGame from './AboutGame';
@@ -18,8 +19,8 @@ const getCreateButtonTitle = (
   walletBalance: number | null,
 ): string => {
   if (!connected) return 'Please connect your wallet first';
-  if (betAmount && walletBalance !== null && (parseFloat(betAmount) + 0.01) > walletBalance) {
-    return 'Insufficient balance for this bet amount';
+  if (betAmount && walletBalance !== null && (parseFloat(betAmount) + 0.01 + RESOLUTION_FEE_PER_PLAYER) > walletBalance) {
+    return 'Insufficient balance for this bet amount + fees';
   }
   return '';
 };
@@ -505,17 +506,17 @@ export const BlockchainGame: React.FC = () => {
                     <div className="flex justify-between items-center text-sm mt-1">
                       <span className="text-base-content/70">Estimated Cost:</span>
                       <span className={`font-mono ${
-                        walletBalance !== null && (parseFloat(betAmount) + 0.01) > walletBalance
+                        walletBalance !== null && (parseFloat(betAmount) + 0.01 + RESOLUTION_FEE_PER_PLAYER) > walletBalance
                           ? 'text-error font-semibold'
                           : ''
                       }`}
                       >
                         ~
-                        {(parseFloat(betAmount) + 0.01).toFixed(3)}
+                        {(parseFloat(betAmount) + 0.01 + RESOLUTION_FEE_PER_PLAYER).toFixed(3)}
                         {' '}
                         SOL
                         <span className="text-xs text-base-content/50 ml-1">
-                          (bet + fees)
+                          (bet + tx + resolution fees)
                         </span>
                       </span>
                     </div>
@@ -523,11 +524,11 @@ export const BlockchainGame: React.FC = () => {
 
                   {/* Insufficient balance warning */}
                   {betAmount && parseFloat(betAmount) > 0 && walletBalance !== null
-                    && (parseFloat(betAmount) + 0.01) > walletBalance && (
+                    && (parseFloat(betAmount) + 0.01 + RESOLUTION_FEE_PER_PLAYER) > walletBalance && (
                     <div className="mt-2 p-2 bg-error/10 border border-error/20 rounded text-xs text-error">
                       ⚠️ Insufficient balance! You need
                       {' '}
-                      {((parseFloat(betAmount) + 0.01) - walletBalance).toFixed(3)}
+                      {((parseFloat(betAmount) + 0.01 + RESOLUTION_FEE_PER_PLAYER) - walletBalance).toFixed(3)}
                       {' '}
                       more SOL.
                     </div>
@@ -553,13 +554,13 @@ export const BlockchainGame: React.FC = () => {
                     loading
                     || !connected
                     || Boolean(betAmount && walletBalance !== null
-                      && (parseFloat(betAmount) + 0.01) > walletBalance)
+                      && (parseFloat(betAmount) + 0.01 + RESOLUTION_FEE_PER_PLAYER) > walletBalance)
                   }
                   className={`btn btn-primary ${
                     !connected ? 'btn-disabled' : ''
                   } ${
                     betAmount && walletBalance !== null
-                      && (parseFloat(betAmount) + 0.01) > walletBalance
+                      && (parseFloat(betAmount) + 0.01 + RESOLUTION_FEE_PER_PLAYER) > walletBalance
                       ? 'btn-disabled'
                       : ''
                   }`}
@@ -573,7 +574,7 @@ export const BlockchainGame: React.FC = () => {
                 </button>
               </div>
               <div className="mt-2 text-xs text-base-content/60">
-                💡 Minimum bet: 0.01 SOL • Transaction fees: ~0.01 SOL
+                💡 Minimum bet: 0.01 SOL • Tx fees: ~0.01 SOL • Resolution fee: 0.001 SOL
               </div>
             </div>
           )}
@@ -831,20 +832,20 @@ export const BlockchainGame: React.FC = () => {
             <div className="mb-6 p-4 bg-success/10 border-2 border-success/30 rounded-lg">
               <div className="flex items-center justify-center mb-3">
                 <div className="w-3 h-3 bg-success rounded-full mr-2 animate-pulse" />
-                <p className="text-success font-bold">✅ Ready for Resolution!</p>
+                <p className="text-success font-bold">⚡ Auto-Resolving Game!</p>
               </div>
               <p className="text-sm text-base-content/80 mb-3">
-                Both players have made their selections. The game is ready to be resolved.
+                Both players have made their selections. The game is resolving automatically.
               </p>
 
-              {/* Why manual resolution explanation */}
+              {/* Auto-resolution explanation */}
               <div className="bg-info/10 border border-info/30 rounded-lg p-3 text-left">
-                <p className="text-info font-semibold text-sm mb-2">📊 Why You Need to Click "Resolve Game":</p>
+                <p className="text-info font-semibold text-sm mb-2">🎲 Auto-Resolution System:</p>
                 <ul className="text-xs text-base-content/70 space-y-1">
+                  <li>• Game resolves automatically when both players select</li>
                   <li>• Uses VRF (Verifiable Random Function) for provably fair randomness</li>
-                  <li>• Requires a blockchain transaction (small fee ~0.001 SOL)</li>
-                  <li>• Either player can trigger resolution - whoever clicks first</li>
-                  <li>• Prevents automatic wallet popups for better user control</li>
+                  <li>• Small resolution fee (0.001 SOL per player) covers blockchain costs</li>
+                  <li>• No manual intervention required - just wait for confirmation</li>
                 </ul>
               </div>
             </div>
@@ -884,9 +885,9 @@ export const BlockchainGame: React.FC = () => {
                   <li>
                     •
                     {' '}
-                    <strong>Manual Resolve:</strong>
+                    <strong>Auto-Resolution:</strong>
                     {' '}
-                    Try the &ldquo;Resolve Game&rdquo; button to manually trigger completion
+                    Games resolve automatically - just wait for blockchain confirmation
                   </li>
                   <li>
                     •
@@ -907,23 +908,16 @@ export const BlockchainGame: React.FC = () => {
             </div>
           )}
 
-          {/* Recovery Options for stuck resolving games */}
+          {/* Auto-Resolution Status */}
           <div className="mt-6 space-y-3">
-            {/* Manual Resolution - try to complete the game */}
-            <button
-              type="button"
-              onClick={async () => {
-                if (gameState.roomId) {
-                  await resolveGameManually(gameState.roomId);
-                }
-              }}
-              className="btn btn-primary btn-sm mr-3"
-              disabled={loading}
-              title="Try to manually resolve the game and determine winner"
-            >
-              <span className="mr-2">🎲</span>
-              {loading ? 'Resolving...' : 'Resolve Game'}
-            </button>
+            {/* Auto-resolution status indicator */}
+            <div className="flex items-center justify-center p-4 bg-info/10 border border-info/20 rounded-lg">
+              <div className="loading loading-spinner loading-sm text-info mr-3"></div>
+              <div>
+                <p className="text-info font-semibold">⚡ Auto-Resolution in Progress</p>
+                <p className="text-sm text-base-content/70">The game will complete automatically - no action needed!</p>
+              </div>
+            </div>
 
             {/* Timeout option - only show if we can check timeout */}
             <button

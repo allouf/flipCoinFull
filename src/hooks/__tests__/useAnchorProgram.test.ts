@@ -12,7 +12,7 @@ jest.mock('@coral-xyz/anchor', () => ({
 
 jest.mock('../config/program', () => ({
   PROGRAM_ID: {
-    toBase58: () => 'DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp',
+    toBase58: () => '4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM',
   },
 }));
 

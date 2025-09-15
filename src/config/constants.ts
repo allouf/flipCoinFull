@@ -1,7 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 
 // Deployed Program ID on Devnet
-export const PROGRAM_ID = new PublicKey('DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp');
+export const PROGRAM_ID = new PublicKey('4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM');
 
 // Network configuration
 export const NETWORK = 'devnet';
@@ -11,6 +11,7 @@ export const RPC_ENDPOINT = 'https://api.devnet.solana.com';
 export const HOUSE_FEE_BASIS_POINTS = 300; // 3% house fee
 export const MIN_BET_AMOUNT = 0.01; // 0.01 SOL minimum bet
 export const GAME_TIMEOUT_SECONDS = 30; // 30 seconds to make a choice
+export const RESOLUTION_FEE_PER_PLAYER = 0.001; // 0.001 SOL resolution fee per player
 
 // VRF Configuration (Switchboard)
 export const SWITCHBOARD_PROGRAM_ID = new PublicKey('SW1TCH7qEPTdLsDHRgPuMQjbQxKdH2aBStViMFnt64f');

@@ -129,9 +129,39 @@
           "isSigner": false
         },
         {
+          "name": "globalState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "escrowAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "player1",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "player2",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "houseWallet",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "player",
           "isMut": false,
           "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
         }
       ],
       "args": [
@@ -146,8 +176,8 @@
     {
       "name": "resolveGame",
       "docs": [
-        "Resolve the game and distribute payouts",
-        "Uses secure pseudo-random generation and handles all edge cases"
+        "DEPRECATED: Manual resolution is no longer needed",
+        "Games now auto-resolve when both players make selections"
       ],
       "accounts": [
         {
@@ -434,10 +464,6 @@
             "type": "i64"
           },
           {
-            "name": "selectionDeadline",
-            "type": "i64"
-          },
-          {
             "name": "vrfResult",
             "docs": [
               "VRF/randomness result for transparency"
@@ -449,12 +475,6 @@
                   32
                 ]
               }
-            }
-          },
-          {
-            "name": "vrfStatus",
-            "type": {
-              "defined": "VrfStatus"
             }
           },
           {
@@ -528,38 +548,18 @@
           }
         ]
       }
-    },
-    {
-      "name": "VrfStatus",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "None"
-          },
-          {
-            "name": "Pending"
-          },
-          {
-            "name": "Fulfilled"
-          },
-          {
-            "name": "Failed"
-          }
-        ]
-      }
     }
   ],
   "errors": [
     {
       "code": 6000,
       "name": "InvalidHouseFee",
-      "msg": "House fee cannot exceed 10%"
+      "msg": "House fee cannot exceed maximum allowed percentage"
     },
     {
       "code": 6001,
-      "name": "BetTooSmall",
-      "msg": "Bet amount is below minimum"
+      "name": "InvalidBetAmount",
+      "msg": "Bet amount is outside allowed range"
     },
     {
       "code": 6002,
@@ -578,56 +578,76 @@
     },
     {
       "code": 6005,
-      "name": "SelectionTimeout",
-      "msg": "Selection timeout exceeded"
-    },
-    {
-      "code": 6006,
       "name": "AlreadySelected",
       "msg": "Player has already made a selection"
     },
     {
-      "code": 6007,
+      "code": 6006,
       "name": "NotInRoom",
-      "msg": "Player is not in this room"
+      "msg": "Player is not participating in this room"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidGameState",
+      "msg": "Invalid game state detected"
     },
     {
       "code": 6008,
-      "name": "InvalidGameState",
-      "msg": "Invalid game state"
+      "name": "MissingSelections",
+      "msg": "Both players must make selections before resolving"
     },
     {
       "code": 6009,
-      "name": "MissingSelections",
-      "msg": "Missing player selections"
+      "name": "InvalidTimeoutCondition",
+      "msg": "Timeout condition not met"
     },
     {
       "code": 6010,
-      "name": "InvalidTimeoutCondition",
-      "msg": "Invalid timeout condition"
+      "name": "TimeoutNotReached",
+      "msg": "Timeout period has not been reached"
     },
     {
       "code": 6011,
       "name": "Unauthorized",
-      "msg": "Unauthorized access"
+      "msg": "Unauthorized access - invalid authority"
     },
     {
       "code": 6012,
       "name": "InvalidHouseWallet",
-      "msg": "Invalid house wallet"
+      "msg": "Invalid house wallet provided"
     },
     {
       "code": 6013,
-      "name": "InsufficientEscrowBalance",
-      "msg": "Insufficient escrow balance"
+      "name": "InvalidPlayer",
+      "msg": "Invalid player account"
     },
     {
       "code": 6014,
       "name": "ProgramPaused",
-      "msg": "Program is paused"
+      "msg": "Program is currently paused"
+    },
+    {
+      "code": 6015,
+      "name": "RoomExpired",
+      "msg": "Room has expired and cannot be joined"
+    },
+    {
+      "code": 6016,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow occurred"
+    },
+    {
+      "code": 6017,
+      "name": "ArithmeticUnderflow",
+      "msg": "Arithmetic underflow occurred"
+    },
+    {
+      "code": 6018,
+      "name": "InsufficientEscrowFunds",
+      "msg": "Escrow account has insufficient funds"
     }
   ],
   "metadata": {
-    "address": "DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp"
+    "address": "4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM"
   }
 }
