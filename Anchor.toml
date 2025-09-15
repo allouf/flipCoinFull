@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-coin_flipper = "DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp"
+coin_flipper = "4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM"
 
 [registry]
 url = "https://api.apr.dev"

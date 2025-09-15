@@ -3,7 +3,7 @@ use anchor_lang::system_program::{Transfer, transfer};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-declare_id!("4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM");
+declare_id!("DwEq4NgXQJsJCo1UoxpFXFUAKk4w2LpFqgX18dLvvmrp");
 
 /// House fee in basis points (3% = 300 basis points)
 pub const HOUSE_FEE_BPS: u16 = 300;

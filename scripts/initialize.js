@@ -1,70 +1,74 @@
-const anchor = require("@project-serum/anchor");
-const { PublicKey, SystemProgram } = require("@solana/web3.js");
+const anchor = require('@coral-xyz/anchor');
+const { SystemProgram, LAMPORTS_PER_SOL } = require('@solana/web3.js');
+const fs = require('fs');
+const path = require('path');
 
-// Configure the client to use the devnet cluster
-const connection = new anchor.web3.Connection("https://api.devnet.solana.com", "confirmed");
+// Load the IDL
+const idlPath = path.join(__dirname, '../target/idl/coin_flipper.json');
+const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
 
-async function initialize() {
-  // Load wallet from ~/.config/solana/id.json or your wallet
-  const wallet = anchor.web3.Keypair.generate(); // Replace with your wallet
-  
-  const provider = new anchor.AnchorProvider(
-    connection,
-    wallet,
-    { commitment: "confirmed" }
-  );
-  
-  // Program ID from deployment
-  const programId = new PublicKey("GGowNXivyzWKePKstFpyU18ykoaM9ygKuuzAV1mYoczn");
-  
-  // Load IDL
-  const idl = require("../src/idl/coin_flipper.json");
-  
-  // Create program interface
-  const program = new anchor.Program(idl, programId, provider);
-  
-  // Derive global state PDA
-  const [globalState] = await PublicKey.findProgramAddress(
-    [Buffer.from("global_state")],
-    programId
-  );
-  
-  console.log("Global State PDA:", globalState.toString());
-  
-  // Check if already initialized
+async function initializeProgram() {
   try {
-    const account = await program.account.globalState.fetch(globalState);
-    console.log("Program already initialized!");
-    console.log("House wallet:", account.houseWallet.toString());
-    console.log("House fee (bps):", account.houseFeeBps);
-    console.log("Total games:", account.totalGames.toString());
-    console.log("Is paused:", account.isPaused);
-    return;
-  } catch (e) {
-    console.log("Program not initialized, initializing now...");
-  }
-  
-  // Create house wallet
-  const houseWallet = anchor.web3.Keypair.generate();
-  
-  try {
+    // Configure the client to use devnet
+    const connection = new anchor.web3.Connection('https://api.devnet.solana.com', 'confirmed');
+    
+    // Load wallet
+    const wallet = anchor.AnchorProvider.env().wallet;
+    const provider = new anchor.AnchorProvider(connection, wallet, {});
+    anchor.setProvider(provider);
+
+    // Load the program
+    const programId = new anchor.web3.PublicKey('4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM');
+    const program = new anchor.Program(idl, programId, provider);
+
+    console.log('🚀 Initializing Coin Flipper program...');
+    console.log('Program ID:', programId.toString());
+    console.log('House Wallet:', wallet.publicKey.toString());
+
+    // Derive the global state PDA
+    const [globalState] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from('global_state')],
+      programId
+    );
+
+    // Check if already initialized
+    try {
+      const existingState = await program.account.globalState.fetch(globalState);
+      console.log('✅ Program already initialized!');
+      console.log('Current house wallet:', existingState.houseWallet.toString());
+      console.log('House fee percentage:', existingState.houseFeePercentage);
+      return;
+    } catch (error) {
+      console.log('🔧 Program not yet initialized, proceeding...');
+    }
+
     // Initialize the program
     const tx = await program.methods
-      .initialize(300) // 3% house fee
+      .initialize(300) // 3% house fee (300 basis points)
       .accounts({
-        globalState,
-        authority: provider.wallet.publicKey,
-        houseWallet: houseWallet.publicKey,
+        globalState: globalState,
+        houseWallet: wallet.publicKey,
+        payer: wallet.publicKey,
         systemProgram: SystemProgram.programId,
       })
       .rpc();
+
+    console.log('✅ Program initialized successfully!');
+    console.log('Transaction signature:', tx);
+    console.log('Global state account:', globalState.toString());
+    console.log('House wallet set to:', wallet.publicKey.toString());
+    console.log('House fee percentage: 3%');
+
+  } catch (error) {
+    console.error('❌ Error initializing program:', error);
     
-    console.log("Initialization transaction signature:", tx);
-    console.log("Program initialized successfully!");
-    console.log("House wallet:", houseWallet.publicKey.toString());
-  } catch (err) {
-    console.error("Initialization failed:", err);
+    // More detailed error logging
+    if (error.logs) {
+      console.log('Program logs:');
+      error.logs.forEach(log => console.log('  ', log));
+    }
   }
 }
 
-initialize();
+// Run the initialization
+initializeProgram().catch(console.error);

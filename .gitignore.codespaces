@@ -1,0 +1,95 @@
+# Codespaces Smart Contract Only - .gitignore
+
+# Frontend files (NOT needed for smart contract deployment)
+/src/
+/public/
+/build/
+/coverage/
+/node_modules/
+package*.json
+yarn.lock
+tsconfig.json
+tailwind.config.js
+postcss.config.js
+craco.config.js
+.prettierrc
+.eslintrc.json
+
+# Frontend-specific docs
+FRONTEND_*.md
+VERCEL_*.md
+REALTIME_*.md
+
+# Build artifacts that should be rebuilt
+/target/
+programs/*/target/
+**/*.rs.bk
+*.so
+
+# Solana/Anchor temporary files
+.anchor/
+test-ledger/
+Cargo.lock
+programs/*/Cargo.lock
+
+# Environment files (will be created fresh in codespaces)
+.env*
+!.env.example
+
+# IDE and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Credentials and sensitive files - NEVER COMMIT
+*_CREDENTIALS.txt
+*_WALLET_CREDENTIALS.txt
+wallet-credentials.json
+house-wallet.json
+temp-wallet.json
+*.keypair
+private-keys.txt
+
+# Agent OS and Claude files
+.agent-os/
+.claude/
+
+# Archive files
+*.tar.bz2
+*.tar.gz
+*.zip
+solana.tar.bz2
+anchor.tar.bz2
+
+# Temporary and backup files
+*.bak
+*_backup.*
+*_original.*
+*_playground.*
+temp_*
+*.tmp
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Deployment artifacts (will be generated fresh)
+deployment-artifacts/
+
+# Directories not needed for SC deployment
+-ErrorAction/
+SilentlyContinue/
+FAndriusflipCoin-clean/
+simple-flipper/
+tests/
+.vercel/
