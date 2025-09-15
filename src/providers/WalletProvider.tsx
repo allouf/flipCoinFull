@@ -60,7 +60,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     >
       <SolanaWalletProvider
         wallets={wallets}
-        autoConnect={false}
+        autoConnect={true}
         onError={(error) => {
           // Silent error handling - log only in development
           if (process.env.NODE_ENV === 'development') {
