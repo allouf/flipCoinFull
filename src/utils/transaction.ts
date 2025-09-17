@@ -71,8 +71,13 @@ export async function retryTransaction(
       
       console.log(`❌ Transaction attempt ${attempt + 1} failed:`, lastError.message);
       console.log(`🔄 Is retryable:`, isRetryable);
+      
+      // Special handling for AccountDidNotSerialize errors
+      if (lastError.message.includes('AccountDidNotSerialize')) {
+        console.log(`🔧 AccountDidNotSerialize detected - will retry with fresh account data`);
+      }
 
-      // Don't retry on certain errors
+      // Don't retry on certain errors (but DO retry AccountDidNotSerialize with fresh data)
       if (
         lastError.message.includes('User rejected')
         || lastError.message.includes('insufficient funds')
@@ -80,7 +85,7 @@ export async function retryTransaction(
         || lastError.message.includes('Invalid program')
         || lastError.message.includes('ConstraintMut')
         || lastError.message.includes('no second player')
-        || !isRetryable
+        || (!isRetryable && !lastError.message.includes('AccountDidNotSerialize'))
       ) {
         // For user rejection, throw a more user-friendly error without the stack trace
         if (lastError.message.includes('User rejected')) {

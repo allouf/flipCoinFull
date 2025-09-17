@@ -503,18 +503,48 @@ export const useAnchorProgram = () => {
       const globalStateData = program.coder.accounts.decode('GlobalState', globalStateInfo.data);
       const houseWallet = globalStateData.houseWallet as PublicKey;
 
-        // Execute transaction with current enum format
-        const tx = await retryTransaction(
-          program.provider.connection,
-          () => program.methods
+        // Create a transaction builder that fetches fresh account data on each attempt
+        const buildTransactionWithFreshData = async () => {
+          // Force fresh account data fetch before building transaction
+          console.log(`🔄 Fetching fresh account data for transaction attempt...`);
+          
+          // Clear cache and get absolutely fresh room data
+          rpcManager.clearCache();
+          const freshRoom = await fetchGameRoom(roomId, true);
+          if (!freshRoom) {
+            throw new Error(`Room ${roomId} not found during fresh data fetch`);
+          }
+          
+          // Get fresh global state data
+          const { connection: freshConn } = program.provider;
+          const freshGlobalStateInfo = await freshConn.getAccountInfo(globalStatePda);
+          if (!freshGlobalStateInfo) {
+            throw new Error('Global state account not found during fresh fetch');
+          }
+          const freshGlobalStateData = program.coder.accounts.decode('GlobalState', freshGlobalStateInfo.data);
+          const freshHouseWallet = freshGlobalStateData.houseWallet as PublicKey;
+          
+          // Derive fresh escrow PDA
+          const [freshEscrowPda] = PublicKey.findProgramAddressSync(
+            [
+              Buffer.from('escrow'),
+              (freshRoom as any).creator.toBuffer(),
+              new BN(roomId).toArrayLike(Buffer, 'le', 8),
+            ],
+            PROGRAM_ID,
+          );
+          
+          console.log(`🕵️ Using fresh account data: Room=${gameRoomPda.toString().slice(-8)}, Escrow=${freshEscrowPda.toString().slice(-8)}`);
+          
+          return program.methods
             .makeSelection(coinSide)
             .accounts({
               gameRoom: gameRoomPda,
               globalState: globalStatePda,
-              escrowAccount: escrowPda,
-              player1: (room as any).player1,
-              player2: (room as any).player2,
-              houseWallet: houseWallet,
+              escrowAccount: freshEscrowPda,
+              player1: (freshRoom as any).player1,
+              player2: (freshRoom as any).player2,
+              houseWallet: freshHouseWallet,
               player: wallet.publicKey!,
               systemProgram: SystemProgram.programId,
             })
@@ -522,8 +552,14 @@ export const useAnchorProgram = () => {
               commitment: 'confirmed',
               preflightCommitment: 'confirmed',
               skipPreflight: false,
-            }),
-          { maxRetries: 2, retryDelay: 1000 },
+            });
+        };
+        
+        // Execute transaction with fresh data rebuilding on each retry
+        const tx = await retryTransaction(
+          program.provider.connection,
+          buildTransactionWithFreshData,
+          { maxRetries: 3, retryDelay: 1500 }, // Increased retries and delay for AccountDidNotSerialize
         );
 
         // Success! Log which format worked
