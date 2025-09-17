@@ -72,11 +72,28 @@ export async function retryTransaction(
       console.log(`❌ Transaction attempt ${attempt + 1} failed:`, lastError.message);
       console.log(`🔄 Is retryable:`, isRetryable);
       
+      // Check for program-specific errors that should never be retried
+      const isProgramLogicError = 
+        lastError.message.includes('RoomNotAvailable') ||
+        lastError.message.includes('GameAlreadyStarted') ||
+        lastError.message.includes('InvalidGameState') ||
+        lastError.message.includes('SelectionTimeExpired') ||
+        lastError.message.includes('Error Number: 6001') || // GameAlreadyStarted
+        lastError.message.includes('Error Number: 6002') || // RoomNotAvailable
+        lastError.message.includes('Error Number: 6003') || // InvalidGameState
+        lastError.message.includes('Error Number: 6004') || // SelectionTimeExpired
+        lastError.message.includes('Error Number: 6005');   // InsufficientFunds (program level)
+      
       // Special handling for AccountDidNotSerialize errors
       if (lastError.message.includes('AccountDidNotSerialize')) {
         console.log(`🔧 AccountDidNotSerialize detected - will retry with fresh account data`);
       }
-
+      
+      // Special handling for program logic errors
+      if (isProgramLogicError) {
+        console.log(`🚷 Program logic error detected - will not retry`);
+      }
+        
       // Don't retry on certain errors (but DO retry AccountDidNotSerialize with fresh data)
       if (
         lastError.message.includes('User rejected')
@@ -85,6 +102,7 @@ export async function retryTransaction(
         || lastError.message.includes('Invalid program')
         || lastError.message.includes('ConstraintMut')
         || lastError.message.includes('no second player')
+        || isProgramLogicError
         || (!isRetryable && !lastError.message.includes('AccountDidNotSerialize'))
       ) {
         // For user rejection, throw a more user-friendly error without the stack trace
@@ -151,6 +169,28 @@ export function isRetryableError(error: Error): boolean {
  */
 export function formatTransactionError(error: Error): string {
   const message = error.message.toLowerCase();
+  const originalMessage = error.message;
+
+  // Check for specific Anchor program errors by error code
+  if (originalMessage.includes('Error Code: RoomNotAvailable') || originalMessage.includes('Error Number: 6002')) {
+    return 'This room is no longer available for joining. It may be full, expired, or cancelled by the creator.';
+  }
+  
+  if (originalMessage.includes('Error Code: GameAlreadyStarted') || originalMessage.includes('Error Number: 6001')) {
+    return 'Cannot join: This game has already started with another player.';
+  }
+  
+  if (originalMessage.includes('Error Code: InvalidGameState') || originalMessage.includes('Error Number: 6003')) {
+    return 'Game is in an invalid state. Try refreshing the page or leaving the game.';
+  }
+  
+  if (originalMessage.includes('Error Code: SelectionTimeExpired') || originalMessage.includes('Error Number: 6004')) {
+    return 'Selection time has expired. Use "Handle Timeout" to resolve the game.';
+  }
+  
+  if (originalMessage.includes('Error Code: InsufficientFunds') || originalMessage.includes('Error Number: 6005')) {
+    return 'Insufficient SOL balance to cover the bet amount and transaction fees.';
+  }
 
   // Check for insufficient lamports error with specific amounts
   if (message.includes('insufficient lamports')) {
@@ -169,7 +209,7 @@ export function formatTransactionError(error: Error): string {
   } if (message.includes('insufficient funds')) {
     return 'Insufficient SOL balance to cover transaction and fees.';
   } if (message.includes('user rejected')) {
-    return 'Transaction was rejected by wallet.';
+    return 'Transaction was cancelled by user.';
   } if (message.includes('rate limit') || message.includes('429')) {
     return 'Network is busy. Please wait a moment and try again.';
   } if (message.includes('timeout')) {
@@ -183,5 +223,15 @@ export function formatTransactionError(error: Error): string {
   } if (message.includes('no second player')) {
     return 'This game never had a second player. Use "Leave Game" to exit.';
   }
+  
+  // Generic Anchor error handling
+  if (originalMessage.includes('AnchorError') && originalMessage.includes('Error Code:')) {
+    const errorCodeMatch = originalMessage.match(/Error Code: (\w+)/);
+    if (errorCodeMatch) {
+      const errorCode = errorCodeMatch[1];
+      return `Game error (${errorCode}): ${originalMessage.split('Error Message: ')[1]?.split('.')[0] || 'Please try again or contact support.'}`;
+    }
+  }
+  
   return `Transaction failed: ${error.message}`;
 }
