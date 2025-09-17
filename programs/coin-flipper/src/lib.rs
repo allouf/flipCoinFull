@@ -18,8 +18,8 @@ pub const MAX_HOUSE_FEE_BPS: u16 = 1000;
 pub const RESOLUTION_FEE_PER_PLAYER: u64 = 1_000_000;
 /// Room expiry timeout (2 hours in seconds)
 pub const ROOM_EXPIRY_SECONDS: i64 = 7200;
-/// Selection timeout (10 minutes in seconds)
-pub const SELECTION_TIMEOUT_SECONDS: i64 = 600;
+/// Selection timeout (30 minutes in seconds) - more generous for user experience
+pub const SELECTION_TIMEOUT_SECONDS: i64 = 1800;
 
 /// Helper function to validate escrow has sufficient balance before transfers
 fn validate_escrow_balance(escrow_account: &AccountInfo, required_amount: u64) -> Result<()> {

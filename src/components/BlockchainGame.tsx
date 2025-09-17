@@ -984,9 +984,31 @@ export const BlockchainGame: React.FC = () => {
         <div className="text-center py-8">
           <div className="text-4xl mb-4">
             {gameState.winner?.includes('won') ? '🎉' : 
-             gameState.winner?.includes('Tie') ? '🤝' : '😔'}
+             gameState.winner?.includes('Tie') ? '🤝' : 
+             gameState.winner?.includes('timed out') ? '⏰' : '😔'}
           </div>
           <p className="text-2xl font-bold mb-4">{gameState.winner}</p>
+          
+          {/* Timeout-specific UI */}
+          {gameState.winner?.includes('timed out') && (
+            <div className="mb-6 p-4 bg-success/10 border border-success/20 rounded-lg max-w-md mx-auto">
+              <h4 className="font-semibold text-success mb-2">✅ Timeout Handled Successfully</h4>
+              <p className="text-sm text-base-content/80 mb-3">
+                The timeout has been processed and your bet has been refunded to your wallet.
+              </p>
+              <div className="bg-info/10 border border-info/20 rounded p-3 text-left mb-3">
+                <p className="text-info text-xs font-semibold mb-2">💰 Refund Details:</p>
+                <ul className="text-xs text-base-content/70 space-y-1">
+                  <li>✅ Your bet: {gameState.betAmount} SOL</li>
+                  <li>✅ Transaction fees covered</li>
+                  <li>✅ Total refunded: {gameState.betAmount} SOL</li>
+                </ul>
+              </div>
+              <p className="text-xs text-base-content/60">
+                💡 Your funds have been automatically returned to your wallet.
+              </p>
+            </div>
+          )}
           
           {/* Explanation for ties/refunds */}
           {gameState.winner?.includes('Tie') && (
@@ -1006,6 +1028,7 @@ export const BlockchainGame: React.FC = () => {
             </div>
           )}
           
+          {/* Show Play Again button for all completed games */}
           <button
             type="button"
             onClick={resetGame}

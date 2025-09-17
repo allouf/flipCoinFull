@@ -1,164 +1,146 @@
-# Vercel Deployment Guide for Solana Coin Flipper
+# 🚀 Vercel Deployment Guide - Real-Time Coin Flipper
 
-## Prerequisites
-✅ Production build created successfully
-✅ Vercel configuration file (`vercel.json`) ready
-✅ Environment variables configured (`.env.production`)
+## 🎯 Deploy Your Complete Real-Time Gaming App
 
-## Deployment Options
+### Step 1: Deploy to Vercel
+1. Go to [vercel.com](https://vercel.com)
+2. Click **"New Project"**
+3. Import your **`flipCoinFull`** repository from GitHub
+4. Vercel will auto-detect it's a React app - click **"Deploy"**
 
-### Option 1: Deploy via Vercel CLI (Recommended)
+### Step 2: 🚨 CRITICAL - Set Environment Variables
 
-1. **Install Vercel CLI** (if not already installed):
-```bash
-npm i -g vercel
-```
+**IMPORTANT**: Your app won't work without these! In Vercel dashboard:
+**Settings → Environment Variables** and add ALL of these:
 
-2. **Deploy to Vercel**:
-```bash
-vercel
-```
-
-3. **Follow the prompts**:
-   - Set up and deploy: `Y`
-   - Which scope: Select your account
-   - Link to existing project: `N` (for first deployment)
-   - Project name: `solana-coin-flipper` (or your preferred name)
-   - Directory: `./` (current directory)
-   - Override settings: `N`
-
-4. **Production deployment**:
-```bash
-vercel --prod
-```
-
-### Option 2: Deploy via GitHub Integration
-
-1. **Push your code to GitHub**:
-```bash
-git add .
-git commit -m "Ready for Vercel deployment"
-git push origin main
-```
-
-2. **Connect to Vercel**:
-   - Go to [vercel.com](https://vercel.com)
-   - Click "Import Project"
-   - Select your GitHub repository
-   - Configure project settings (auto-detected from vercel.json)
-   - Click "Deploy"
-
-### Option 3: Direct Upload via Vercel Dashboard
-
-1. **Go to [vercel.com](https://vercel.com)**
-2. Click "New Project"
-3. Click "Upload Folder"
-4. Select your `build` folder
-5. Configure environment variables in dashboard
-6. Deploy
-
-## Environment Variables Setup in Vercel
-
-After deployment, add these environment variables in Vercel Dashboard:
-
-1. Go to your project settings
-2. Navigate to "Environment Variables"
-3. Add the following:
-
+#### ⚙️ Core Application Settings
 ```
 REACT_APP_NETWORK=devnet
-REACT_APP_SOLANA_RPC_HOST=https://api.devnet.solana.com
-REACT_APP_PROGRAM_ID=GGowNXivyzWKePKstFpyU18ykoaM9ygKuuzAV1mYoczn
-REACT_APP_HOUSE_WALLET=auto
-REACT_APP_WS_ENDPOINT=wss://api.devnet.solana.com
-REACT_APP_VRF_QUEUE=F8ce7MsckeZAbAGmxjJNetxYXQa9mKr9nnrC3qKubyYy
-REACT_APP_VRF_AUTHORITY=2KgowxogBrGqRcgXQEmqFvC3PGtCu66qERNJevYW8Ajh
-REACT_APP_MIN_BET_AMOUNT=0.01
+REACT_APP_HOUSE_FEE_PERCENTAGE=3
+```
+
+#### 🔗 Live Smart Contract (PRODUCTION)
+```
+REACT_APP_PROGRAM_ID=4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM
+REACT_APP_GLOBAL_STATE_PDA=51vcHNsEijchCTPdt5GGMtCBkLinArYVrN2h8kSv28ed
 REACT_APP_HOUSE_FEE_BPS=300
-REACT_APP_SELECTION_TIMEOUT_SECONDS=30
-REACT_APP_ENABLE_VRF=true
-REACT_APP_ENABLE_AUTO_MATCH=true
-REACT_APP_ENABLE_HISTORY=true
-REACT_APP_ENABLE_WEBSOCKET=true
+REACT_APP_MIN_BET_SOL=0.01
 ```
 
-## Quick Deploy Script
-
-Create a one-command deployment:
-
-```bash
-# Add to package.json scripts
-"deploy:vercel": "npm run build && vercel --prod"
+#### 🌐 Solana RPC Endpoints
+```
+REACT_APP_DEVNET_RPC_URL=https://api.devnet.solana.com
+REACT_APP_TESTNET_RPC_URL=https://api.testnet.solana.com  
+REACT_APP_MAINNET_RPC_URL=https://api.mainnet-beta.solana.com
 ```
 
-## Testing Your Deployment
+#### 🎲 VRF Configuration (Test Values)
+```
+REACT_APP_VRF_ACCOUNT_1_PUBKEY=2s1Jnnr7LxQ4zmk5wQiFjyoHqgYPUK8jRd2wvNLRTxxN
+REACT_APP_VRF_ACCOUNT_1_NAME=test-vrf-primary
+REACT_APP_VRF_ACCOUNT_1_PRIORITY=1
 
-Once deployed, you'll receive a URL like:
-- Preview: `https://solana-coin-flipper-xxx.vercel.app`
-- Production: `https://solana-coin-flipper.vercel.app`
+REACT_APP_VRF_ACCOUNT_2_PUBKEY=AdmbEwjXbr4SSJp5WS6UVJRXU1o2KjQTextRZqH4s1vz
+REACT_APP_VRF_ACCOUNT_2_NAME=test-vrf-secondary
+REACT_APP_VRF_ACCOUNT_2_PRIORITY=2
 
-### Test Checklist:
-- [ ] Wallet connection works (Phantom, Solflare)
-- [ ] Network shows as Devnet
-- [ ] Can create game rooms
-- [ ] Can join existing rooms
-- [ ] Coin flip animations work
-- [ ] Transaction history displays
-- [ ] WebSocket connections establish
-- [ ] Mobile responsive design works
+REACT_APP_VRF_ACCOUNT_3_PUBKEY=4UwHQRAcwusZ7Aw4FkKyRLX8y1Avv9AhTdUxjx2KoAyo
+REACT_APP_VRF_ACCOUNT_3_NAME=test-vrf-tertiary
+REACT_APP_VRF_ACCOUNT_3_PRIORITY=3
+```
 
-## Custom Domain Setup (Optional)
+#### 📊 Performance & Monitoring
+```
+REACT_APP_VRF_MAX_QUEUE_DEPTH=15
+REACT_APP_VRF_MAX_RESPONSE_TIME=9000
+REACT_APP_VRF_MIN_SUCCESS_RATE=0.92
+REACT_APP_VRF_HEALTH_CHECK_INTERVAL=30000
+```
 
-1. In Vercel Dashboard, go to "Domains"
-2. Add your custom domain
-3. Configure DNS settings as instructed
-4. SSL certificate auto-provisioned
+#### 🚀 Production Optimizations
+```
+REACT_APP_ENABLE_DEVTOOLS=false
+REACT_APP_LOG_LEVEL=info
+REACT_APP_ENABLE_VRF_DEBUG=false
+GENERATE_SOURCEMAP=false
+```
 
-## Monitoring & Analytics
-
-- **Vercel Analytics**: Auto-enabled for performance metrics
-- **Function Logs**: View in Vercel dashboard
-- **Error Tracking**: Check browser console for client-side errors
-
-## Troubleshooting
-
-### Build Failures
-- Check `npm run build` works locally
-- Verify all dependencies in package.json
-- Check Node version compatibility (14.x or higher)
-
-### Runtime Issues
-- Verify environment variables are set
-- Check browser console for errors
-- Ensure wallet extensions are installed
-- Verify Solana program is deployed on Devnet
-
-### WebSocket Issues
-- Vercel supports WebSocket connections
-- May need to configure CORS if using custom domain
-
-## Performance Optimization
-
-Your app is already optimized with:
-- Code splitting via React
-- Lazy loading for routes
-- Optimized bundle size
-- CDN distribution via Vercel
-
-## Support & Resources
-
-- [Vercel Documentation](https://vercel.com/docs)
-- [Solana Devnet Faucet](https://faucet.solana.com)
-- [Your Program on Explorer](https://explorer.solana.com/address/GGowNXivyzWKePKstFpyU18ykoaM9ygKuuzAV1mYoczn?cluster=devnet)
-
-## Next Steps After Deployment
-
-1. Share the URL with testers
-2. Monitor performance in Vercel dashboard
-3. Collect user feedback
-4. Iterate based on testing results
-5. Prepare for Mainnet deployment after testing
+### Step 3: Redeploy After Setting Variables
+After adding all environment variables, click **"Redeploy"** to apply them.
 
 ---
 
-**Ready to Deploy!** Your app is configured and ready for live testing on Vercel. The build is optimized and all configurations are in place.
+## 🎉 What You Just Deployed
+
+### 🔥 Real-Time Gaming Features
+- ⚡ **Instant notifications** - toast alerts for all game events
+- 🔄 **Auto-refresh every 1-3 seconds** - no manual refresh needed
+- 🎯 **Auto-resolution system** - games complete instantly
+- 💰 **Smart refund handling** - clear tie explanations
+
+### 🎮 Complete Gaming Experience
+- 📱 **Toast notifications** for:
+  - Player joins your game
+  - Opponent makes selection  
+  - Both players selected (auto-resolving)
+  - Game completed with results
+- 🤝 **Tie scenarios** with automatic refund breakdowns
+- 💡 **Clear UI explanations** for all game states
+
+### 🔐 Production Smart Contract
+- **Program ID**: `4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM`
+- **Network**: Solana Devnet
+- **Auto-resolution**: ✅ Enabled
+- **Resolution fee**: 0.001 SOL per player
+- **House fee**: 3% on winnings
+- **Tie handling**: ✅ Automatic refunds
+
+### ⚡ Performance Optimizations
+- **Cache TTL**: 2-3 seconds (extremely responsive)
+- **Polling intervals**: 1-1.5 seconds during active gameplay
+- **Real-time state sync**: Both users see changes instantly
+- **Optimistic updates**: Immediate UI feedback
+
+---
+
+## 🧪 Test Your Live App
+
+After deployment, test these scenarios:
+
+### ✅ Basic Flow Test
+1. **User1**: Create a room (0.02 SOL bet)
+2. **User2**: Join the room (in different browser/tab)
+3. **User1**: Should get "Player Joined!" notification
+4. **Both**: Make selections (heads/tails)
+5. **Both**: Should see "Game Complete!" notification
+6. **Winner**: Should see "You won!" 
+7. **Loser**: Should see "You lost!"
+
+### ✅ Tie Scenario Test
+1. Both players choose **same side** (heads/heads or tails/tails)
+2. Should show "🤝 Tie! Both players chose the same side - bets refunded"
+3. Should display refund breakdown:
+   - Your bet: 0.02 SOL
+   - Your resolution fee: 0.001 SOL  
+   - Total refunded: 0.021 SOL
+
+### ✅ Real-Time Updates Test
+- No manual refresh should be needed
+- Notifications should appear for all major events
+- Updates should happen within 1-3 seconds
+- Both users should see changes simultaneously
+
+---
+
+## 🎯 Your Live Gaming App is Ready! 
+
+🔗 **Vercel URL**: `https://your-app-name.vercel.app`
+
+**Features Live**:
+- ⚡ Real-time multiplayer coin flipping
+- 🔔 Instant push notifications  
+- 💰 Auto-resolution with fair payouts
+- 🤝 Smart tie handling with refunds
+- 🎮 Complete gaming experience
+
+**No more manual refreshing - everything happens automatically!** 🚀

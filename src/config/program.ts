@@ -15,7 +15,7 @@ export const PROGRAM_CONFIG = {
   programId: PROGRAM_ID,
   houseFeePercentage: 3, // 3% house fee
   minBetAmount: 0.01, // Minimum bet in SOL
-  selectionTimeoutSeconds: 120, // Timeout for player selection (moved from smart contract)
+  selectionTimeoutSeconds: 1800, // 30 minutes timeout - more generous for user experience
 };
 
 // Network endpoints - Using reliable public endpoints

@@ -38,13 +38,9 @@ export interface GameRoom {
   | { tails?: Record<string, never> }
   | null;
   createdAt: BN;
-  selectionDeadline: BN;
+  // Note: selectionDeadline removed from current program version
   vrfResult: number[] | null;
-  vrfStatus:
-  | { none?: Record<string, never> }
-  | { pending?: Record<string, never> }
-  | { fulfilled?: Record<string, never> }
-  | { failed?: Record<string, never> };
+  // Note: vrfStatus also removed from current program version - using simple auto-resolution
   winner: PublicKey | null;
   totalPot: BN;
   bump: number;
@@ -407,6 +403,21 @@ export const useAnchorProgram = () => {
       // Check if this player has already made a selection
       const isPlayer1 = roomData.player1 && wallet.publicKey && roomData.player1.equals(wallet.publicKey);
       const isPlayer2 = roomData.player2 && wallet.publicKey && roomData.player2.equals(wallet.publicKey);
+      
+      console.log('=== GAME ROOM STATE DEBUG ===');
+      console.log('Room Status:', getRoomStatusString(roomStatus));
+      console.log('Player 1:', roomData.player1?.toString());
+      console.log('Player 2:', roomData.player2?.toString());
+      console.log('Current wallet:', wallet.publicKey?.toString());
+      console.log('Is Player 1:', isPlayer1);
+      console.log('Is Player 2:', isPlayer2);
+      console.log('Player 1 selection:', roomData.player1Selection);
+      console.log('Player 2 selection:', roomData.player2Selection);
+      console.log('Room created at:', new Date(roomData.createdAt?.toNumber() * 1000));
+      // Note: selectionDeadline and vrfStatus fields removed from current program version
+      console.log('Winner:', roomData.winner?.toString() || 'None');
+      console.log('Total pot:', roomData.totalPot?.toNumber() / 1_000_000_000, 'SOL');
+      console.log('=== END GAME ROOM STATE DEBUG ===');
 
       if (isPlayer1 && roomData.player1Selection !== null) {
         throw new Error('Cannot make selection: You have already made your selection.');
@@ -433,17 +444,45 @@ export const useAnchorProgram = () => {
       PROGRAM_ID,
     );
 
-    // Try object-style enum variant (Borsh format)
+    // Use correct lowercase enum format for Anchor serialization
+    // Anchor expects lowercase variant names despite IDL showing capitalized names
     const coinSide = selection === 'heads' ? { heads: {} } : { tails: {} };
-    console.log('Making selection with coinSide:', coinSide, 'for room:', roomId);
-    console.log('CoinSide object keys:', Object.keys(coinSide));
+    console.log(`Making ${selection} selection using format: ${JSON.stringify(coinSide)}`);
 
-    try {
-      // Get room data to extract required account addresses
-      const room = await fetchGameRoom(roomId, true);
-      if (!room) {
-        throw new Error(`Room ${roomId} not found for selection`);
-      }
+    // Try different enum serialization formats if the first attempt fails
+    const enumFormats = [
+      selection === 'heads' ? { heads: {} } : { tails: {} },     // Lowercase (most common)
+      selection === 'heads' ? { Heads: {} } : { Tails: {} },     // Capitalized (IDL style)
+      selection === 'heads' ? 'heads' : 'tails',                // String format
+      selection === 'heads' ? 0 : 1,                            // Numeric format
+    ];
+    
+    let lastError: Error | null = null;
+    
+    for (let formatIndex = 0; formatIndex < enumFormats.length; formatIndex++) {
+      const coinSide = enumFormats[formatIndex];
+      console.log(`Attempting selection with format ${formatIndex + 1}/${enumFormats.length}: ${JSON.stringify(coinSide)}`);
+      
+      try {
+        // Clear cache and get fresh room data before each attempt
+        if (formatIndex > 0) {
+          console.log(`🔄 Clearing cache before format ${formatIndex + 1} attempt`);
+          rpcManager.clearCache();
+          // Brief delay to ensure fresh state
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        // Get room data to extract required account addresses
+        const room = await fetchGameRoom(roomId, true);
+        if (!room) {
+          throw new Error(`Room ${roomId} not found for selection`);
+        }
+        
+        // Double-check account state is still valid before transaction
+        console.log(`🔍 Validating room state for format ${formatIndex + 1}...`);
+        if (!(room as any).status?.selectionsPending) {
+          throw new Error(`Room state changed: no longer in SelectionsPending state`);
+        }
 
       // Derive escrow PDA
       const [escrowPda] = PublicKey.findProgramAddressSync(
@@ -464,34 +503,89 @@ export const useAnchorProgram = () => {
       const globalStateData = program.coder.accounts.decode('GlobalState', globalStateInfo.data);
       const houseWallet = globalStateData.houseWallet as PublicKey;
 
-      const tx = await retryTransaction(
-        program.provider.connection,
-        () => program.methods
-          .makeSelection(coinSide)
-          .accounts({
-            gameRoom: gameRoomPda,
-            globalState: globalStatePda,
-            escrowAccount: escrowPda,
-            player1: (room as any).player1,
-            player2: (room as any).player2,
-            houseWallet: houseWallet,
-            player: wallet.publicKey!,
-            systemProgram: SystemProgram.programId,
-          })
-          .rpc({
-            commitment: 'confirmed',
-            preflightCommitment: 'confirmed',
-            skipPreflight: false,
-          }),
-        { maxRetries: 3, retryDelay: 1000 },
-      );
+        // Execute transaction with current enum format
+        const tx = await retryTransaction(
+          program.provider.connection,
+          () => program.methods
+            .makeSelection(coinSide)
+            .accounts({
+              gameRoom: gameRoomPda,
+              globalState: globalStatePda,
+              escrowAccount: escrowPda,
+              player1: (room as any).player1,
+              player2: (room as any).player2,
+              houseWallet: houseWallet,
+              player: wallet.publicKey!,
+              systemProgram: SystemProgram.programId,
+            })
+            .rpc({
+              commitment: 'confirmed',
+              preflightCommitment: 'confirmed',
+              skipPreflight: false,
+            }),
+          { maxRetries: 2, retryDelay: 1000 },
+        );
 
-      return { tx, gameRoomPda };
-    } catch (error) {
-      console.error('Error making selection:', error);
-      const formattedError = new Error(formatTransactionError(error as Error));
+        // Success! Log which format worked
+        console.log(`✅ Selection successful with format ${formatIndex + 1}: ${JSON.stringify(coinSide)}`);
+        return { tx, gameRoomPda };
+        
+      } catch (error) {
+        lastError = error as Error;
+        console.log(`❌ Format ${formatIndex + 1} failed: ${lastError.message}`);
+        
+        // Check for different types of retryable enum/serialization errors
+        const isEnumError = 
+          lastError.message.includes('unable to infer src variant') ||
+          lastError.message.includes('Invalid enum variant') ||
+          lastError.message.includes('AccountDidNotSerialize') ||
+          lastError.message.includes('Failed to serialize') ||
+          lastError.message.includes('3004'); // AccountDidNotSerialize error code
+        
+        // If this is not an enum/serialization error, don't try other formats
+        if (!isEnumError) {
+          console.log('🛑 Non-enum/serialization error detected, stopping format attempts');
+          console.log('Error type:', typeof lastError, lastError.constructor.name);
+          break;
+        }
+        
+        console.log(`🔄 Enum/serialization error detected, trying next format...`);
+        // Continue to next format
+        continue;
+      }
+    }
+    
+    // All formats failed, throw the last error
+    if (lastError) {
+      console.error('\n=== ALL ENUM FORMATS FAILED ===');
+      console.error('Original selection:', selection);
+      console.error('Tried formats:', enumFormats.length);
+      console.error('Final error:', lastError.message);
+      
+      // Provide comprehensive guidance based on error type
+      if (lastError.message.includes('unable to infer src variant')) {
+        console.error('\n🚨 ENUM SERIALIZATION ISSUE PERSISTS!');
+        console.error('This suggests the IDL definition may be outdated or incompatible.');
+        console.error('\nRecommendations:');
+        console.error('1. Regenerate IDL from the deployed program');
+        console.error('2. Check if the program was redeployed with different enum structure');
+        console.error('3. Verify the Anchor version compatibility');
+      } else if (lastError.message.includes('insufficient')) {
+        console.error('\n💰 INSUFFICIENT BALANCE ERROR');
+        console.error('User needs more SOL for transaction fees and/or bet amount.');
+      } else {
+        console.error('\n⚠️ OTHER TRANSACTION ERROR');
+        console.error('This may be a network issue, account constraint violation, or program logic error.');
+      }
+      
+      console.error('=== END ERROR DEBUG ===\n');
+      
+      const formattedError = new Error(formatTransactionError(lastError));
       throw formattedError;
     }
+    
+    // This should never be reached, but just in case
+    throw new Error('Unknown error occurred during selection - no formats were attempted');
   }, [program, wallet.publicKey]);
 
   const fetchAllGameRooms = useCallback(async (options: { userInitiated?: boolean; priority?: 'low' | 'normal' | 'high' } = {}): Promise<GameRoom[]> => {

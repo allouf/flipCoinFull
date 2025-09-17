@@ -1,12 +1,11 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { toast, ToastContainer, ToastOptions } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import React, { createContext, useContext, useCallback, ReactNode } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface NotificationContextType {
-  showSuccess: (message: string, options?: ToastOptions) => void;
-  showError: (message: string, options?: ToastOptions) => void;
-  showInfo: (message: string, options?: ToastOptions) => void;
-  showWarning: (message: string, options?: ToastOptions) => void;
+  showSuccess: (message: string) => void;
+  showError: (message: string) => void;
+  showInfo: (message: string) => void;
+  showWarning: (message: string) => void;
   showGameUpdate: (message: string, gameId?: number) => void;
 }
 
@@ -25,36 +24,46 @@ interface NotificationProviderProps {
 }
 
 export const NotificationProvider: React.FC<NotificationProviderProps> = ({ children }) => {
-  const defaultOptions: ToastOptions = {
-    position: "top-right",
-    autoClose: 5000,
-    hideProgressBar: false,
-    closeOnClick: true,
-    pauseOnHover: true,
-    draggable: true,
-  };
-
-  const showSuccess = useCallback((message: string, options?: ToastOptions) => {
-    toast.success(message, { ...defaultOptions, ...options });
+  const showSuccess = useCallback((message: string) => {
+    toast.success(message, {
+      duration: 5000,
+      position: 'top-right',
+    });
   }, []);
 
-  const showError = useCallback((message: string, options?: ToastOptions) => {
-    toast.error(message, { ...defaultOptions, ...options });
+  const showError = useCallback((message: string) => {
+    toast.error(message, {
+      duration: 5000,
+      position: 'top-right',
+    });
   }, []);
 
-  const showInfo = useCallback((message: string, options?: ToastOptions) => {
-    toast.info(message, { ...defaultOptions, ...options });
+  const showInfo = useCallback((message: string) => {
+    toast(message, {
+      duration: 5000,
+      position: 'top-right',
+      icon: 'ℹ️',
+    });
   }, []);
 
-  const showWarning = useCallback((message: string, options?: ToastOptions) => {
-    toast.warning(message, { ...defaultOptions, ...options });
+  const showWarning = useCallback((message: string) => {
+    toast(message, {
+      duration: 5000,
+      position: 'top-right',
+      icon: '⚠️',
+      style: {
+        background: '#f59e0b',
+        color: '#ffffff',
+      },
+    });
   }, []);
 
   const showGameUpdate = useCallback((message: string, gameId?: number) => {
     const displayMessage = gameId ? `🎲 Game ${gameId}: ${message}` : `🎲 ${message}`;
-    toast.info(displayMessage, {
-      ...defaultOptions,
-      autoClose: 7000,
+    toast(displayMessage, {
+      duration: 7000,
+      position: 'top-right',
+      icon: '🎲',
     });
   }, []);
 
@@ -69,19 +78,33 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   return (
     <NotificationContext.Provider value={value}>
       {children}
-      <ToastContainer
+      <Toaster
         position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-        toastClassName="custom-toast"
-        style={{ zIndex: 9999 }}
+        gutter={8}
+        containerClassName=""
+        containerStyle={{
+          zIndex: 9999,
+        }}
+        toastOptions={{
+          className: '',
+          duration: 5000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+          success: {
+            style: {
+              background: '#10b981',
+              color: '#fff',
+            },
+          },
+          error: {
+            style: {
+              background: '#ef4444',
+              color: '#fff',
+            },
+          },
+        }}
       />
     </NotificationContext.Provider>
   );
