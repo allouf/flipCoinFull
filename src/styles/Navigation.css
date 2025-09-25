@@ -1,0 +1,247 @@
+/* Navigation Component Styles */
+
+.navigation {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 70px;
+}
+
+/* Brand */
+.nav-brand {
+  flex-shrink: 0;
+}
+
+.brand-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  color: white;
+  font-size: 1.25rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.brand-link:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+.brand-icon {
+  font-size: 2rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.brand-text {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Navigation Links */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  justify-content: center;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  position: relative;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.nav-link.active {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.nav-link.active::before {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: white;
+  border-radius: 1px;
+}
+
+.nav-icon {
+  font-size: 1.125rem;
+}
+
+.nav-label {
+  font-weight: 600;
+}
+
+/* Status */
+.nav-status {
+  flex-shrink: 0;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  transition: all 0.2s ease;
+}
+
+.connection-status.connected {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: white;
+}
+
+.connection-status.disconnected {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: white;
+}
+
+.status-indicator {
+  font-size: 0.75rem;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+.status-text {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .nav-container {
+    padding: 0 1rem;
+    height: 60px;
+  }
+
+  .brand-link {
+    font-size: 1.125rem;
+  }
+
+  .brand-icon {
+    font-size: 1.75rem;
+  }
+
+  .nav-links {
+    gap: 0.5rem;
+  }
+
+  .nav-link {
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+  }
+
+  .nav-label {
+    display: none;
+  }
+
+  .nav-icon {
+    font-size: 1.25rem;
+  }
+
+  .status-text {
+    display: none;
+  }
+
+  .connection-status {
+    padding: 0.5rem;
+    min-width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-container {
+    padding: 0 0.75rem;
+    height: 56px;
+  }
+
+  .brand-text {
+    display: none;
+  }
+
+  .brand-icon {
+    font-size: 2rem;
+  }
+
+  .nav-links {
+    gap: 0.25rem;
+  }
+
+  .nav-link {
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .navigation {
+    background: linear-gradient(135deg, #4c1d95, #6b21a8);
+  }
+}
+
+/* High contrast support */
+@media (prefers-contrast: high) {
+  .nav-link {
+    border-width: 2px;
+  }
+
+  .connection-status {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .brand-link,
+  .nav-link,
+  .connection-status {
+    transition: none;
+  }
+
+  .brand-link:hover,
+  .nav-link:hover {
+    transform: none;
+  }
+}

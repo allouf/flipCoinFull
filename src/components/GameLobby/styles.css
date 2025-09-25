@@ -1,0 +1,182 @@
+/* Game Lobby Styles */
+
+/* Game Cards */
+.card {
+  transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+}
+
+.card.border-l-warning {
+  border-left-width: 4px;
+  border-color: hsl(var(--wa));
+}
+
+/* Tabs */
+.tabs-boxed {
+  background: rgba(var(--b1) / 0.05);
+  padding: 0.5rem;
+  border-radius: 1rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.tab {
+  background: transparent;
+  border-radius: 0.75rem;
+  padding: 0.5rem 1rem;
+  color: var(--bc);
+  opacity: 0.7;
+  transition: all 0.2s ease-in-out;
+}
+
+.tab:hover {
+  opacity: 0.9;
+  background: rgba(var(--b1) / 0.1);
+}
+
+.tab-active {
+  opacity: 1;
+  background: var(--p);
+  color: var(--pc);
+}
+
+/* Loading States */
+.loading {
+  @apply animate-spin;
+}
+
+.loading-spinner {
+  border-top-color: transparent;
+  border-right-color: transparent;
+}
+
+/* Search and Filters */
+.form-control {
+  width: 100%;
+}
+
+.input-group {
+  display: flex;
+  width: 100%;
+}
+
+.input-group > .input {
+  flex: 1;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.input-group > .btn {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* Pagination */
+.join {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.join-item {
+  border-radius: 0.5rem;
+}
+
+/* Empty States */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.empty-state-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.empty-state-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state-description {
+  color: var(--bc);
+  opacity: 0.7;
+  margin-bottom: 1.5rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .tabs-boxed {
+    flex-wrap: wrap;
+  }
+
+  .tab {
+    flex: 1;
+    min-width: 120px;
+    text-align: center;
+  }
+
+  .card-body {
+    padding: 1rem;
+  }
+
+  .empty-state {
+    padding: 2rem 1rem;
+  }
+
+  .empty-state-icon {
+    font-size: 3rem;
+  }
+
+  .empty-state-title {
+    font-size: 1.25rem;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .card {
+    background: hsl(var(--b2));
+  }
+
+  .tabs-boxed {
+    background: rgba(var(--b2) / 0.1);
+  }
+
+  .tab:hover {
+    background: rgba(var(--b2) / 0.2);
+  }
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  .card {
+    border-width: 2px;
+    border-color: currentColor;
+  }
+
+  .tab {
+    border-width: 2px;
+  }
+
+  .input {
+    border-width: 2px;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .tab {
+    transition: none;
+  }
+
+  .loading {
+    animation: none;
+  }
+}
