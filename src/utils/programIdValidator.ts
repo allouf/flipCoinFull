@@ -9,7 +9,7 @@ import { PROGRAM_ID } from '../config/program';
  */
 
 // Expected Program ID that should be used throughout the application
-const EXPECTED_PROGRAM_ID = '4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM';
+const EXPECTED_PROGRAM_ID = '7CCbhfJx5fUPXZGRu9bqvztBiQHpYPaNL1rGFy9hrcf6';
 
 export interface ProgramIdValidationResult {
   isValid: boolean;

@@ -1,0 +1,164 @@
+--- Fix for Coin Flipper Game State Management Issue ---
+--- Problem: Player who has committed sees "revealing" when other player hasn't committed yet ---
+--- Solution: Only show revealing phase when BOTH players have committed ---
+
+FILE: src/hooks/useFairCoinFlipper.ts
+
+1. Add to GameState interface (around line 33):
+   waitingForOpponent: boolean;  // NEW: Track if waiting for opponent to commit
+
+2. Initialize in default state (around line 75):
+   waitingForOpponent: false,
+
+3. Fix rejoinExistingGame function (around lines 879-900):
+
+REPLACE:
+      // Check if the player has already made their commitment
+      const commitmentA = (gameAccount as any).commitmentA;
+      const commitmentB = (gameAccount as any).commitmentB;
+      const hasPlayerACommitted = commitmentA && commitmentA.length > 0 && !commitmentA.every((byte: number) => byte === 0);
+      const hasPlayerBCommitted = commitmentB && commitmentB.length > 0 && !commitmentB.every((byte: number) => byte === 0);
+      const hasCurrentPlayerCommitted = isPlayerA ? hasPlayerACommitted : hasPlayerBCommitted;
+
+      // Determine the correct game phase based on blockchain status
+      let phase: GamePhase = 'waiting';
+      let blockchainStatus: GameStatus = 'WaitingForPlayer';
+
+      if ('waitingForPlayer' in status) {
+        phase = 'waiting';
+        blockchainStatus = 'WaitingForPlayer';
+      } else if ('playersReady' in status) {
+        // If the current player has already made their commitment, they should wait for the other player
+        if (hasCurrentPlayerCommitted) {
+          phase = 'revealing'; // Show waiting for reveal (they've already committed)
+        } else {
+          phase = 'committing'; // Still need to make commitment
+        }
+        blockchainStatus = 'PlayersReady';
+
+WITH:
+      // Check if the player has already made their commitment
+      const commitmentA = (gameAccount as any).commitmentA;
+      const commitmentB = (gameAccount as any).commitmentB;
+      const hasPlayerACommitted = commitmentA && commitmentA.length > 0 && !commitmentA.every((byte: number) => byte === 0);
+      const hasPlayerBCommitted = commitmentB && commitmentB.length > 0 && !commitmentB.every((byte: number) => byte === 0);
+      const hasCurrentPlayerCommitted = isPlayerA ? hasPlayerACommitted : hasPlayerBCommitted;
+      const hasBothPlayersCommitted = hasPlayerACommitted && hasPlayerBCommitted;
+
+      console.log('🔍 [REJOIN] Commitment Status Check:', {
+        gameId,
+        currentPlayer: isPlayerA ? 'Player A' : 'Player B',
+        hasPlayerACommitted,
+        hasPlayerBCommitted,
+        hasCurrentPlayerCommitted,
+        hasBothPlayersCommitted,
+        blockchainStatus: Object.keys(status)[0]
+      });
+
+      // Determine the correct game phase based on blockchain status
+      let phase: GamePhase = 'waiting';
+      let blockchainStatus: GameStatus = 'WaitingForPlayer';
+      let waitingForOpponent = false;
+
+      if ('waitingForPlayer' in status) {
+        console.log('📍 [REJOIN] Waiting for player to join');
+        phase = 'waiting';
+        blockchainStatus = 'WaitingForPlayer';
+      } else if ('playersReady' in status) {
+        // FIXED: Only show revealing phase when BOTH players have committed
+        if (hasBothPlayersCommitted) {
+          console.log('🎯 [REJOIN] Both players committed - ready to reveal');
+          phase = 'revealing';
+        } else if (hasCurrentPlayerCommitted) {
+          console.log('⏳ [REJOIN] Current player committed, waiting for opponent');
+          phase = 'committing';
+          waitingForOpponent = true;
+        } else {
+          console.log('🎲 [REJOIN] Current player needs to make commitment');
+          phase = 'committing';
+          waitingForOpponent = false;
+        }
+        blockchainStatus = 'PlayersReady';
+
+4. Update state setting in rejoinExistingGame (around line 915):
+   Add to setGameState:
+   waitingForOpponent,
+
+5. Apply SAME fix to loadGameByPda function (around lines 1205-1227)
+
+6. Update makeChoice function to track waiting state (around line 570):
+   After successful commitment, set:
+   waitingForOpponent: true,
+
+FILE: src/pages/GameRoomPage.tsx
+
+7. Update committing phase rendering (around line 343):
+
+REPLACE:
+      case 'committing':
+        return (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-6">🤝</div>
+            <h3 className="text-2xl font-bold mb-4">Choose Your Side</h3>
+            <p className="text-lg text-base-content/70 mb-8">
+              Both players are making their selections. Choose heads or tails!
+            </p>
+
+            <div className="flex justify-center space-x-8 mb-8">
+              <button
+                onClick={() => handleMakeChoice('heads')}
+                className={`btn btn-lg ${selectedChoice === 'heads' ? 'btn-primary' : 'btn-outline'}`}
+              >
+                👑 Heads
+              </button>
+              <button
+                onClick={() => handleMakeChoice('tails')}
+                className={`btn btn-lg ${selectedChoice === 'tails' ? 'btn-primary' : 'btn-outline'}`}
+              >
+                ⚡ Tails
+              </button>
+            </div>
+
+WITH:
+      case 'committing':
+        // Check if we're waiting for opponent
+        if (gameState.waitingForOpponent) {
+          return (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-6 animate-pulse">⏳</div>
+              <h3 className="text-2xl font-bold mb-4">Waiting for Opponent</h3>
+              <p className="text-lg text-base-content/70 mb-8">
+                You've made your choice! Waiting for the other player to make their selection...
+              </p>
+              <div className="mb-8">
+                <div className="badge badge-info badge-lg">Your choice is locked in</div>
+              </div>
+              <button onClick={handleBackToLobby} className="btn btn-ghost btn-sm">
+                ← Back to Lobby
+              </button>
+            </div>
+          );
+        }
+
+        return (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-6">🤝</div>
+            <h3 className="text-2xl font-bold mb-4">Choose Your Side</h3>
+            <p className="text-lg text-base-content/70 mb-8">
+              Both players are making their selections. Choose heads or tails!
+            </p>
+
+            <div className="flex justify-center space-x-8 mb-8">
+              <button
+                onClick={() => handleMakeChoice('heads')}
+                className={`btn btn-lg ${selectedChoice === 'heads' ? 'btn-primary' : 'btn-outline'}`}
+              >
+                👑 Heads
+              </button>
+              <button
+                onClick={() => handleMakeChoice('tails')}
+                className={`btn btn-lg ${selectedChoice === 'tails' ? 'btn-primary' : 'btn-outline'}`}
+              >
+                ⚡ Tails
+              </button>
+            </div>

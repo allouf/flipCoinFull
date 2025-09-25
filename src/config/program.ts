@@ -7,13 +7,13 @@
 
 import { PublicKey } from '@solana/web3.js';
 
-// Deployed Program ID on Solana Devnet (from Codespaces)
-export const PROGRAM_ID = new PublicKey('4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM');
+// Deployed Program ID on Solana Devnet (correct one)
+export const PROGRAM_ID = new PublicKey('7CCbhfJx5fUPXZGRu9bqvztBiQHpYPaNL1rGFy9hrcf6');
 
 // Program configuration
 export const PROGRAM_CONFIG = {
   programId: PROGRAM_ID,
-  houseFeePercentage: 3, // 3% house fee
+  houseFeePercentage: 7, // 7% house fee (as per documentation)
   minBetAmount: 0.01, // Minimum bet in SOL
   selectionTimeoutSeconds: 1800, // 30 minutes timeout - more generous for user experience
 };

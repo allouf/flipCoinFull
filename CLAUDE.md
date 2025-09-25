@@ -1,96 +1,103 @@
-# Project: Solana Coin Flipper Betting Game
-
-## Overview
-A decentralized, peer-to-peer (1v1) betting game on Solana blockchain where players wager real crypto on coin flips. Inspired by successful blockchain games like Rock Paper Scissors, this platform emphasizes "don't trust, verify" with all game logic executed transparently on-chain via smart contracts. No third-party intermediaries or casino operators - just pure peer-to-peer betting with verifiable fairness through blockchain technology. Players connect their Solana wallets (Phantom, Solflare, etc.) to participate in instant, low-fee betting matches.
-
-## Tech Stack
-- Blockchain: Solana (Anchor for smart contracts/programs).
-- Frontend: React.js (with Create React App), Tailwind CSS for styling, React Router for navigation.
-- Wallet Integration: @solana/web3.js, @solana/wallet-adapter-react for connecting wallets (e.g., Phantom, Solflare).
-- Backend (if needed): Node.js with Express for off-chain API (e.g., room matchmaking), but prioritize on-chain where possible.
-- Randomness: Use Switchboard or Chainlink VRF for fair coin flips (on-chain RNG).
-- Other: Axios for any APIs, Socket.io for real-time room updates (e.g., player joins, flip results).
-- Testing: Jest for frontend, Anchor tests for programs.
-- Deployment: Vercel/Netlify for frontend, Solana Devnet/Mainnet for programs.
-
-## Game Rules & Mechanics
-
-### Core Gameplay
-- **Betting & Matching**: Players select token (SOL or SPL tokens) and bet amount. System automatically matches two players with identical bets to form a game room.
-- **Coin Flip Mechanics**: Simple heads or tails selection. Winner takes the pot (sum of both bets minus house fee).
-- **House Fee**: 3% of total pot goes to project maintenance wallet (transparent on-chain).
-- **Instant Resolution**: Single flip determines winner - no best-of-3 or extended rounds needed.
-
-### Time Limits & Timeouts
-- **Decision Timer**: 30 seconds to make heads/tails selection after match is made.
-- **Timeout Resolution**: If a player times out, the other player automatically wins and claims the pot.
-- **Network-Adaptive**: Timeouts adjust based on Solana network congestion (30 seconds to 2 minutes).
-
-### Fairness & Security
-- **Verifiable Randomness**: Using Switchboard VRF or similar oracle for provably fair coin flips.
-- **Smart Contract State Machine**: Game always completes (either organically or via timeout).
-- **No Manipulation**: On-chain execution eliminates any possibility of backend manipulation.
-- **Dispute Resolution**: Automatic - no manual intervention needed, all handled by smart contract logic.
-
-### Betting Limits & Safety
-- **No Maximum Limits**: Players can bet any amount they choose (at their own risk).
-- **Minimum Bet**: 0.01 SOL to cover transaction fees.
-- **Responsible Gaming Warning**: Clear warnings about betting only what users can afford to lose.
-- **Irreversible Transactions**: Once bet is placed, no cancellations or refunds possible.
-
-## Key Features (Prioritized for MVP)
-1. **Wallet Connection**: Connect Solana wallet (Phantom, Solflare, Backpack), view SOL/token balances.
-2. **Auto-Matching System**: Enter bet amount, get matched with another player betting the same amount.
-3. **Room Creation**: Manual room creation with custom bet amounts for playing with friends.
-4. **Coin Flip Execution**: Select heads/tails, execute on-chain flip with VRF randomness.
-5. **Instant Payout**: Winner receives pot minus 3% fee directly to wallet, verifiable on-chain.
-6. **Game History**: View past games, wins/losses, total profit/loss on personal dashboard.
-7. **Real-time Updates**: WebSocket connections for live game status and results.
-
-### Future Features
-- Tournament modes with brackets
-- Leaderboards and statistics
-- Multi-token support (USDC, BONK, etc.)
-- NFT rewards for milestones
-- Chat system in game rooms
-- Mobile app (React Native)
-- ENS-style domain for censorship resistance
-
-## Development Guidelines
-- Code Style: Clean, modular, commented. Use TypeScript for safety. Follow Solana best practices (e.g., secure programs).
-- Security: Validate all inputs, prevent exploits (e.g., reentrancy in programs), use secure RNG.
-- Testing: Unit tests for programs (Anchor), integration for frontend/wallet.
-- Workflow: Break into sprints—plan, build, test. Use Git. On-chain first for core logic.
-- Constraints: Web-only. Fairness via on-chain RNG. House fee to a fixed wallet.
-- Blockchain: Develop on Devnet, deploy to Mainnet later.
-
-## Agents to Leverage
-- Planning: sprint-prioritizer for task breakdown.
-- Backend/Blockchain: backend-architect for APIs, ai-engineer for Solana integration (if AI needed).
-- Frontend: frontend-developer for UI, ui-designer for components.
-- General: rapid-prototyper for setup, test-writer-fixer for QA.
-- Use sequentially (e.g., rapid-prototyper for boilerplate, test-writer-fixer post-implementation).
-
-## Success Criteria
-- **Local Testing**: Connect wallet, auto-match or create room, execute coin flip, receive payout.
-- **On-chain Verification**: All transactions visible on Solana Explorer, smart contract state verifiable.
-- **End-to-End Flow**: Two users can complete full game cycle with proper fee deduction.
-- **Security**: No ability to manipulate outcomes, exploit timeouts, or reverse transactions.
-- **Performance**: Sub-second transaction confirmation, instant UI updates via WebSocket.
-
-## Platform Strategy
-- **Solana Advantages**: Leverage sub-cent fees and fast finality vs Ethereum's high gas costs.
-- **Global Accessibility**: Support worldwide play, no geo-restrictions (user responsibility for local laws).
-- **Transparency First**: Open-source contracts, verifiable randomness, public transaction history.
-- **Community Focus**: Discord for strategies/discussion, Twitter for updates, Telegram for support.
-- **Censorship Resistance**: Multiple frontend deployments, IPFS hosting option, direct contract interaction always possible.
-
-## Agent OS Context Note
-**FOR FRESH SESSIONS**: Complete project context is available - no need to ask user for information:
-- `AGENT_OS_CONTEXT.md` - Comprehensive session context (read this first)
-- `About.md` - Detailed project overview with session handoff guide
-- `TODO.md` - Current sprint priorities with full context
-
-**Current Status (2025-09-04)**: Production-ready system with enterprise VRF error recovery.
-**Next Priority**: Configure real Switchboard VRF accounts (currently using placeholders).
-**Key Commands**: `npm run deploy:verify:enhanced`, `npm run validate-vrf-config`
+Compiled with problems:
+×
+ERROR in ./src/App.tsx 43:10-31
+export 'BackpackWalletAdapter' (imported as 'BackpackWalletAdapter') was not found in '@solana/wallet-adapter-wallets' (possible exports: AlphaWalletAdapter, AlphaWalletName, AvanaWalletAdapter, AvanaWalletName, BitKeepWalletAdapter, BitKeepWalletName, BitgetWalletAdapter, BitgetWalletName, BitpieWalletAdapter, BitpieWalletName, CloverWalletAdapter, CloverWalletName, Coin98WalletAdapter, Coin98WalletName, CoinbaseWalletAdapter, CoinbaseWalletName, CoinhubWalletAdapter, CoinhubWalletName, FractalWalletAdapter, FractalWalletName, HuobiWalletAdapter, HuobiWalletName, HyperPayWalletAdapter, HyperPayWalletName, KeystoneWalletAdapter, KeystoneWalletName, KrystalWalletAdapter, KrystalWalletName, LedgerWalletAdapter, LedgerWalletName, MathWalletAdapter, MathWalletName, NekoWalletAdapter, NekoWalletName, NightlyWalletAdapter, NightlyWalletName, NufiWalletAdapter, NufiWalletName, OntoWalletAdapter, OntoWalletName, ParticleAdapter, ParticleName, PhantomWalletAdapter, PhantomWalletName, SafePalWalletAdapter, SafePalWalletName, SaifuWalletAdapter, SaifuWalletName, SalmonWalletAdapter, SalmonWalletName, SkyWalletAdapter, SkyWalletName, SolflareWalletAdapter, SolflareWalletName, SolongWalletAdapter, SolongWalletName, SpotWalletAdapter, SpotWalletName, TokenPocketWalletAdapter, TokenPocketWalletName, TokenaryWalletAdapter, TokenaryWalletName, TorusWalletAdapter, TorusWalletName, TrezorWalletAdapter, TrezorWalletName, TrustWalletAdapter, TrustWalletName, UnsafeBurnerWalletAdapter, UnsafeBurnerWalletName, WalletConnectWalletAdapter, WalletConnectWalletName, XDEFIWalletAdapter, XDEFIWalletName, getDerivationPath)
+ERROR in src/App.tsx:12:3
+TS2724: '"@solana/wallet-adapter-wallets"' has no exported member named 'BackpackWalletAdapter'. Did you mean 'AlphaWalletAdapter'?
+    10 |   PhantomWalletAdapter,
+    11 |   SolflareWalletAdapter,
+  > 12 |   BackpackWalletAdapter,
+       |   ^^^^^^^^^^^^^^^^^^^^^
+    13 | } from '@solana/wallet-adapter-wallets';
+    14 | import { clusterApiUrl } from '@solana/web3.js';
+    15 | import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+ERROR in src/components/BlockchainGame.tsx:4:10
+TS2305: Module '"../config/constants"' has no exported member 'RESOLUTION_FEE_PER_PLAYER'.
+    2 | import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+    3 | import { useCoinFlipper } from '../hooks/useCoinFlipper';
+  > 4 | import { RESOLUTION_FEE_PER_PLAYER } from '../config/constants';
+      |          ^^^^^^^^^^^^^^^^^^^^^^^^^
+    5 | import RoomBrowser from './RoomBrowser';
+    6 | import RefundManager from './RefundManager';
+    7 | import AboutGame from './AboutGame';
+ERROR in src/components/lobby/AvailableGames.tsx:6:9
+TS7034: Variable 'availableGames' implicitly has type 'any[]' in some locations where its type cannot be determined.
+    4 | export const AvailableGames: React.FC = () => {
+    5 |   // Mock data - replace with actual data from hooks
+  > 6 |   const availableGames = [];
+      |         ^^^^^^^^^^^^^^
+    7 |
+    8 |   if (availableGames.length === 0) {
+    9 |     return (
+ERROR in src/components/lobby/AvailableGames.tsx:60:10
+TS7005: Variable 'availableGames' implicitly has an 'any[]' type.
+    58 |       {/* Games List */}
+    59 |       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  > 60 |         {availableGames.map((game: any) => (
+       |          ^^^^^^^^^^^^^^
+    61 |           <div key={game.id} className="card bg-base-100 shadow-xl">
+    62 |             <div className="card-body">
+    63 |               <div className="flex justify-between items-start">
+ERROR in src/components/lobby/GameHistory.tsx:11:9
+TS7034: Variable 'gameHistory' implicitly has type 'any[]' in some locations where its type cannot be determined.
+     9 |   
+    10 |   // Mock data - replace with actual data from hooks
+  > 11 |   const gameHistory = [];
+       |         ^^^^^^^^^^^
+    12 |
+    13 |   if (!connected) {
+    14 |     return (
+ERROR in src/components/lobby/GameHistory.tsx:105:10
+TS7005: Variable 'gameHistory' implicitly has an 'any[]' type.
+    103 |       {/* History List */}
+    104 |       <div className="space-y-2">
+  > 105 |         {gameHistory.map((game: any) => (
+        |          ^^^^^^^^^^^
+    106 |           <div 
+    107 |             key={game.id} 
+    108 |             className={`card bg-base-100 shadow-sm border-l-4 ${
+ERROR in src/components/lobby/MyGames.tsx:9:9
+TS7034: Variable 'myGames' implicitly has type 'any[]' in some locations where its type cannot be determined.
+     7 |   
+     8 |   // Mock data - replace with actual data from hooks
+  >  9 |   const myGames = [];
+       |         ^^^^^^^
+    10 |
+    11 |   if (!connected) {
+    12 |     return (
+ERROR in src/components/lobby/MyGames.tsx:50:10
+TS7005: Variable 'myGames' implicitly has an 'any[]' type.
+    48 |       {/* Games List */}
+    49 |       <div className="space-y-3">
+  > 50 |         {myGames.map((game: any) => (
+       |          ^^^^^^^
+    51 |           <div key={game.id} className="card bg-base-100 shadow-lg">
+    52 |             <div className="card-body p-4">
+    53 |               <div className="flex justify-between items-start">
+ERROR in src/components/lobby/RunningGames.tsx:6:9
+TS7034: Variable 'runningGames' implicitly has type 'any[]' in some locations where its type cannot be determined.
+    4 | export const RunningGames: React.FC = () => {
+    5 |   // Mock data - replace with actual data from hooks
+  > 6 |   const runningGames = [];
+      |         ^^^^^^^^^^^^
+    7 |
+    8 |   if (runningGames.length === 0) {
+    9 |     return (
+ERROR in src/components/lobby/RunningGames.tsx:44:10
+TS7005: Variable 'runningGames' implicitly has an 'any[]' type.
+    42 |       {/* Games List */}
+    43 |       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  > 44 |         {runningGames.map((game: any) => (
+       |          ^^^^^^^^^^^^
+    45 |           <div key={game.id} className="card bg-base-100 shadow-xl">
+    46 |             <div className="card-body">
+    47 |               <div className="flex justify-between items-start mb-4">
+ERROR in src/services/WebSocketManager.ts:3:10
+TS2305: Module '"../config/constants"' has no exported member 'WEBSOCKET_CONFIG'.
+    1 | import { EventEmitter } from 'eventemitter3';
+    2 | import { io, Socket } from 'socket.io-client';
+  > 3 | import { WEBSOCKET_CONFIG } from '../config/constants';
+      |          ^^^^^^^^^^^^^^^^
+    4 |
+    5 | export interface GameEvent {
+    6 |   type: 'room_created' | 'player_joined' | 'selection_made' | 'game_resolved' | 'player_disconnected';

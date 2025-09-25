@@ -1,42 +1,53 @@
 import { PublicKey } from '@solana/web3.js';
 
-// Deployed Program ID on Devnet
-export const PROGRAM_ID = new PublicKey('4pV1nUjCdfTdxFVN2RckwJ763XZJAnGukVrHxs25f7mM');
+// Program Configuration
+export const PROGRAM_ID = new PublicKey('7CCbhfJx5fUPXZGRu9bqvztBiQHpYPaNL1rGFy9hrcf6');
+export const HOUSE_WALLET = new PublicKey('5FaU7dgFgghJ437ScyqUXtExmn1SGpEkm9NYriZocp7Q');
 
-// Network configuration
-export const NETWORK = 'devnet';
-export const RPC_ENDPOINT = 'https://api.devnet.solana.com';
+// Game Configuration
+export const HOUSE_FEE_PERCENTAGE = 7; // 7% house fee
+export const HOUSE_FEE_BPS = 700; // 7% in basis points
+export const MIN_BET_SOL = 0.01;
+export const MAX_BET_SOL = 100;
+export const TIMEOUT_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+export const RESOLUTION_FEE_PER_PLAYER = 0.001; // Resolution fee in SOL
 
-// Game configuration
-export const HOUSE_FEE_BASIS_POINTS = 300; // 3% house fee
-export const MIN_BET_AMOUNT = 0.01; // 0.01 SOL minimum bet
-export const GAME_TIMEOUT_SECONDS = 30; // 30 seconds to make a choice
-export const RESOLUTION_FEE_PER_PLAYER = 0.001; // 0.001 SOL resolution fee per player
+// Network Configuration
+export const NETWORK = process.env.REACT_APP_NETWORK || 'devnet';
+export const RPC_ENDPOINT = process.env.REACT_APP_RPC_ENDPOINT || 'https://api.devnet.solana.com';
+
+// UI Configuration
+export const LAMPORTS_PER_SOL = 1000000000;
+
+// Game States
+export enum RoomStatus {
+  WaitingForPlayer = 'WaitingForPlayer',
+  SelectionsPending = 'SelectionsPending',
+  Resolving = 'Resolving',
+  Completed = 'Completed',
+  Cancelled = 'Cancelled'
+}
+
+export enum CoinSide {
+  Heads = 'Heads',
+  Tails = 'Tails'
+}
+
+// PDA Seeds
+export const GLOBAL_STATE_SEED = 'global_state';
+export const GAME_ROOM_SEED = 'game_room';
+export const ESCROW_SEED = 'escrow';
+
+// Betting Presets (in SOL)
+export const BET_PRESETS = [0.01, 0.1, 0.5, 1, 5, 10];
 
 // VRF Configuration (Switchboard)
 export const SWITCHBOARD_PROGRAM_ID = new PublicKey('SW1TCH7qEPTdLsDHRgPuMQjbQxKdH2aBStViMFnt64f');
 
 // WebSocket Configuration
 export const WEBSOCKET_CONFIG = {
-  SERVER_URL: process.env.REACT_APP_WEBSOCKET_URL || 'ws://localhost:3001',
+  SERVER_URL: process.env.REACT_APP_WS_URL || 'ws://localhost:3001',
   CONNECTION_TIMEOUT: 10000, // 10 seconds
-  HEARTBEAT_INTERVAL: 25000, // 25 seconds
-  RECONNECT_DELAYS: [1000, 2000, 4000, 8000, 16000, 30000], // Exponential backoff
-  MAX_RECONNECT_ATTEMPTS: 10,
-};
-
-// Real-time Updates Configuration
-export const REALTIME_CONFIG = {
-  EVENT_THROTTLE_MS: 100, // Throttle events to max 10 per second
-  MAX_CACHED_EVENTS: 1000, // Maximum events to cache for deduplication
-  OPTIMISTIC_TIMEOUT_MS: 30000, // 30 seconds before rolling back optimistic updates
-  SUBSCRIPTION_CLEANUP_INTERVAL: 60000, // Clean up stale subscriptions every minute
-};
-
-// Cross-tab Synchronization
-export const SYNC_CONFIG = {
-  HEARTBEAT_INTERVAL: 2000, // 2 seconds
-  LEADER_TIMEOUT: 5000, // 5 seconds
-  CHANNEL_NAME: 'coin-flipper-sync',
-  STALE_TAB_TIMEOUT: 10000, // 10 seconds
+  HEARTBEAT_INTERVAL: 30000, // 30 seconds
+  RECONNECT_DELAY: 1000, // 1 second
 };

@@ -1,0 +1,23 @@
+{
+  "name": "fair-coin-flipper-scripts",
+  "version": "1.0.0",
+  "description": "Scripts for interacting with Fair Coin Flipper smart contract",
+  "main": "interact.js",
+  "scripts": {
+    "info": "node interact.js info",
+    "init": "node interact.js init",
+    "airdrop": "node interact.js airdrop",
+    "create": "node interact.js create-game",
+    "join": "node interact.js join-game",
+    "reveal": "node interact.js reveal",
+    "status": "node interact.js status"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.29.0",
+    "@solana/web3.js": "^1.87.6"
+  },
+  "devDependencies": {},
+  "keywords": ["solana", "blockchain", "coin-flip", "gaming", "anchor"],
+  "author": "Fair Coin Flipper Team",
+  "license": "MIT"
+}
