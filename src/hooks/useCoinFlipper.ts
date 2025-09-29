@@ -3,8 +3,7 @@ import {
 } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useAnchorProgram } from './useAnchorProgram';
-import { getExplorerUrl, PROGRAM_CONFIG } from '../config/program';
-import { rpcManager } from '../utils/rpcManager';
+import { getExplorerUrl } from '../config/program';
 import type { GameNotification } from '../components/GameNotifications';
 
 export interface GameState {
@@ -64,24 +63,9 @@ export const useCoinFlipper = () => {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const userWantsToLeaveRef = useRef(false); // Track user intent to leave
   const abandonedRoomRef = useRef<number | null>(null); // Track abandoned room ID
-  const lastNotificationRef = useRef<{[key: string]: number}>({}); // Track last notification time by type
-  const pageLoadTimeRef = useRef(Date.now()); // Track when page was loaded
-  const stateBroadcastRef = useRef<number | null>(null); // Track state broadcast timestamp
 
-  // Notification management with duplicate prevention
+  // Notification management
   const addNotification = useCallback((notification: Omit<GameNotification, 'id'>) => {
-    const notificationKey = `${notification.type}_${notification.title}_${notification.message}`;
-    const now = Date.now();
-    const lastTime = lastNotificationRef.current[notificationKey] || 0;
-    
-    // Prevent duplicate notifications within 3 seconds
-    if (now - lastTime < 3000) {
-      console.log('🚫 Duplicate notification prevented:', notification.title);
-      return;
-    }
-    
-    lastNotificationRef.current[notificationKey] = now;
-    
     const newNotification: GameNotification = {
       ...notification,
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -97,8 +81,6 @@ export const useCoinFlipper = () => {
   const clearNotifications = useCallback(() => {
     setNotifications([]);
   }, []);
-
-  // Force refresh function will be defined later after updateGameState
 
   // Intelligent game state update that uses cached data efficiently
   const updateGameState = useCallback(async (roomId: number, userInitiated = false) => {
@@ -132,38 +114,14 @@ export const useCoinFlipper = () => {
       let opponentSelection = false;
       let winner: string | null = null;
       let selectionDeadline: number | null = null;
-
-      // Calculate selection deadline based on room creation time
-      // Solana Clock.unix_timestamp returns i64 Unix timestamp in SECONDS (not milliseconds)
-      if (room.createdAt) {
-        // Convert BN to number if needed, but createdAt is already in seconds from Solana
-        const createdAtSeconds = room.createdAt.toNumber ? room.createdAt.toNumber() : Number(room.createdAt);
-        selectionDeadline = createdAtSeconds + PROGRAM_CONFIG.selectionTimeoutSeconds;
-        
-        const readableCreatedAt = new Date(createdAtSeconds * 1000).toLocaleString();
-        const readableDeadline = selectionDeadline ? new Date(selectionDeadline * 1000).toLocaleString() : 'Not set';
-        console.log(`⏰ Room created at: ${readableCreatedAt}, Selection deadline: ${readableDeadline}`);
+      // Extract selection deadline if available
+      if (room.selectionDeadline) {
+        selectionDeadline = room.selectionDeadline.toNumber
+          ? room.selectionDeadline.toNumber()
+          : room.selectionDeadline;
       }
 
-      // Conservative client-side timeout detection - only trigger if significantly past deadline
-      const currentTimeSeconds = Math.floor(Date.now() / 1000);
-      const isTimedOut = selectionDeadline && currentTimeSeconds > (selectionDeadline + 60); // Add 60 second buffer
-
-      if (isTimedOut && (room.status && 'selectionsPending' in room.status)) {
-        // Game has timed out locally but blockchain hasn't updated yet
-        // Only show timeout if we have at least one player who hasn't selected
-        const hasUnselectedPlayers = !room.player1Selection || !room.player2Selection;
-        
-        if (hasUnselectedPlayers) {
-          gameStatus = 'completed';
-          winner = '⏰ Game timed out - use "Handle Timeout" to claim funds';
-          console.log(`⏰ Local timeout detection: Game ${roomId} timed out ${Math.floor((currentTimeSeconds - selectionDeadline!) / 60)} minutes ago`);
-        } else {
-          // Both players selected but still in selectionsPending - this should resolve, not timeout
-          gameStatus = 'resolving';
-          console.log(`🎲 Both players selected past deadline - game should resolve, not timeout`);
-        }
-      } else if (room.status && 'waitingForPlayer' in room.status) {
+      if (room.status && 'waitingForPlayer' in room.status) {
         gameStatus = 'waiting';
       } else if (room.status && 'selectionsPending' in room.status) {
         // Check if both players have made selections
@@ -248,23 +206,17 @@ export const useCoinFlipper = () => {
               duration: 4000,
             });
           } else if (prev.gameStatus !== 'completed' && gameStatus === 'completed') {
-            // Special handling for timeout detection
-            if (winner?.includes('timed out')) {
-              addNotification({
-                type: 'warning',
-                title: 'Game Timed Out!',
-                message: 'Selection time expired. Use "Handle Timeout" button to claim your refund.',
-                duration: 10000, // Extra long for timeout
-              });
-            } else {
-              const notificationType = winner?.includes('won') ? 'success' : winner?.includes('Tie') ? 'info' : 'warning';
-              addNotification({
-                type: notificationType,
-                title: 'Game Complete!',
-                message: winner || 'Game has ended',
-                duration: 8000, // Longer for final result
-              });
-            }
+            const notificationType = winner?.includes('won') ? 'success' : winner?.includes('Tie') ? 'info' : 'warning';
+            addNotification({
+              type: notificationType,
+              title: 'Game Complete!',
+              message: winner || 'Game has ended',
+              duration: 8000, // Longer for final result
+            });
+          }
+          
+          if (winner && gameStatus === 'completed') {
+            console.log(`🏆 Game Result: ${winner}`);
           }
         }
         
@@ -292,89 +244,12 @@ export const useCoinFlipper = () => {
     } catch (err) {
       console.error('Error updating game state:', err);
       setGameState((prev) => ({ ...prev, isStale: false }));
-      
-      // If this was a user-initiated update and failed, suggest a force refresh
-      if (userInitiated) {
-        setError('Failed to update game state. Try using the "Force Refresh" button.');
-      }
     }
-  }, [program, publicKey, fetchGameRoom, addNotification]);
-
-  // Simple state synchronization via localStorage for same-device users
-  const broadcastStateChange = useCallback((roomId: number, changeType: string, data?: any) => {
-    try {
-      const broadcastKey = `coinflip_state_${roomId}`;
-      const broadcastData = {
-        timestamp: Date.now(),
-        changeType,
-        roomId,
-        data,
-        source: publicKey?.toString(),
-      };
-      localStorage.setItem(broadcastKey, JSON.stringify(broadcastData));
-      
-      // Clean up old broadcasts after 5 minutes
-      setTimeout(() => {
-        try {
-          const current = localStorage.getItem(broadcastKey);
-          if (current && JSON.parse(current).timestamp === broadcastData.timestamp) {
-            localStorage.removeItem(broadcastKey);
-          }
-        } catch (e) {
-          // Ignore cleanup errors
-        }
-      }, 300000);
-      
-    } catch (e) {
-      // Ignore localStorage errors
-      console.warn('Failed to broadcast state change:', e);
-    }
-  }, [publicKey]);
-
-  // Listen for state changes from other tabs/windows
-  useEffect(() => {
-    if (!gameState.roomId) return;
-
-    const handleStorageChange = (e: StorageEvent) => {
-      if (!e.key?.startsWith(`coinflip_state_${gameState.roomId}`)) return;
-      if (!e.newValue) return;
-
-      try {
-        const broadcastData = JSON.parse(e.newValue);
-        
-        // Ignore our own broadcasts
-        if (broadcastData.source === publicKey?.toString()) return;
-        
-        // Only react to recent broadcasts
-        if (Date.now() - broadcastData.timestamp > 10000) return;
-        
-        console.log(`📡 Received state broadcast from another user:`, broadcastData);
-        
-        // Refresh our state when we detect changes from other users
-        if (broadcastData.changeType === 'timeout_handled' || 
-            broadcastData.changeType === 'game_completed' ||
-            broadcastData.changeType === 'selection_made' ||
-            broadcastData.changeType === 'player_joined') {
-          
-          console.log(`🔄 Refreshing state due to: ${broadcastData.changeType}`);
-          setTimeout(() => {
-            if (gameState.roomId) {
-              updateGameState(gameState.roomId, false);
-            }
-          }, 1000); // Small delay to allow blockchain to settle
-        }
-      } catch (e) {
-        // Ignore parse errors
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [gameState.roomId, publicKey, updateGameState]);
+  }, [program, publicKey, fetchGameRoom]);
 
   // Smart background refresh - MUCH less aggressive, only for critical states
   useEffect(() => {
-    // Clear existing interval FIRST to prevent duplicates
+    // Clear existing interval
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
@@ -409,31 +284,30 @@ export const useCoinFlipper = () => {
       );
 
       let refreshAttempts = 0;
-      const maxRefreshAttempts = 15; // Extended to 15 attempts
-      const currentGameState = gameState.gameStatus; // Capture current state to avoid stale closures
+      const maxRefreshAttempts = 12; // 6 minutes of attempts
 
-        // Much more conservative refresh intervals to reduce race conditions and server load
-        const getRefreshInterval = (attempt: number) => {
-          if (currentGameState === 'waiting') {
-            // Very conservative for waiting - detect when player joins
-            if (attempt < 2) return 8000; // First 2 attempts every 8 seconds
-            if (attempt < 6) return 15000; // Next 4 attempts every 15 seconds
-            return 30000; // After that, every 30 seconds
-          } else if (currentGameState === 'selecting') {
-            // Conservative for selecting - detect opponent selections  
-            if (attempt < 3) return 6000; // First 3 attempts every 6 seconds
-            if (attempt < 8) return 12000; // Next 5 attempts every 12 seconds
-            return 20000; // After that, every 20 seconds
-          }
-          // For resolving games - faster to catch quick resolution
-          if (attempt < 4) return 5000; // First 4 attempts every 5 seconds
-          if (attempt < 10) return 10000; // Next 6 attempts every 10 seconds
-          return 15000; // After that, every 15 seconds
-        };
+      // Aggressive refresh intervals for instant auto-resolution
+      const getRefreshInterval = (attempt: number) => {
+        if (gameState.gameStatus === 'waiting') {
+          // Frequent for waiting - detect when player joins
+          if (attempt < 10) return 3000; // First 10 attempts every 3 seconds
+          if (attempt < 20) return 5000; // Next 10 attempts every 5 seconds
+          return 10000; // After that, every 10 seconds
+        } else if (gameState.gameStatus === 'selecting') {
+          // VERY frequent for selecting - detect opponent selections instantly
+          if (attempt < 15) return 1500; // First 15 attempts every 1.5 seconds
+          if (attempt < 25) return 3000; // Next 10 attempts every 3 seconds
+          return 5000; // After that, every 5 seconds
+        }
+        // For resolving games - very fast to catch auto-resolution
+        if (attempt < 20) return 1000; // First 20 attempts every 1 second!!
+        if (attempt < 40) return 2000; // Next 20 attempts every 2 seconds
+        return 5000; // After that, every 5 seconds
+      };
 
       const doBackgroundRefresh = async () => {
         if (userWantsToLeaveRef.current || !gameState.roomId) {
-          console.log('😫 Stopping background refresh - user wants to leave or no active game');
+          console.log('🚫 Stopping background refresh - user wants to leave or no active game');
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
             pollingIntervalRef.current = null;
@@ -441,75 +315,40 @@ export const useCoinFlipper = () => {
           return;
         }
 
-        // More conservative refresh timing to prevent race conditions
+        // Only refresh if data isn't too fresh
         const timeSinceUpdate = Date.now() - gameState.lastUpdated;
-        const MIN_UPDATE_INTERVAL = 10000; // Increased to 10 seconds minimum
-        
-        if (timeSinceUpdate > MIN_UPDATE_INTERVAL) {
+        if (timeSinceUpdate > 10000) { // Only if 10+ seconds since last update
           try {
             console.log(`🔄 Background refresh attempt ${refreshAttempts + 1}/${maxRefreshAttempts}`);
-            
-            // Use RPC manager to prevent duplicate requests
-            const roomCacheKey = `fetchGameRoom-${gameState.roomId}`;
-            let room;
-            
-            try {
-              room = await fetchGameRoom(gameState.roomId, false);
-            } catch (fetchError) {
-              console.warn(`⚠️ Failed to fetch room during background refresh:`, fetchError);
-              return; // Skip this refresh attempt
-            }
-            
-            if (!room) {
-              console.warn(`⚠️ Room ${gameState.roomId} not found during background refresh`);
-              if (pollingIntervalRef.current) {
-                clearTimeout(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
+            await updateGameState(gameState.roomId, false);
+
+            // Check if game has progressed to next state
+            const room = await fetchGameRoom(gameState.roomId, false);
+            if (room) {
+              if (gameState.gameStatus === 'waiting' && room.status && 'selectionsPending' in room.status) {
+                console.log('🎉 Player joined - stopping background refresh for waiting state');
+                if (pollingIntervalRef.current) {
+                  clearInterval(pollingIntervalRef.current);
+                  pollingIntervalRef.current = null;
+                }
+                return;
+              } else if (room.status && 'completed' in room.status) {
+                console.log('🎉 Game completed - stopping background refresh');
+                if (pollingIntervalRef.current) {
+                  clearInterval(pollingIntervalRef.current);
+                  pollingIntervalRef.current = null;
+                }
+                return;
               }
-              return;
             }
-
-            // Check if the room state has actually changed before updating
-            const roomStatusChanged = 
-              (currentGameState === 'waiting' && room.status && 'selectionsPending' in room.status) ||
-              (currentGameState === 'selecting' && room.status && 'resolving' in room.status) ||
-              (currentGameState === 'resolving' && room.status && 'completed' in room.status);
-
-            if (roomStatusChanged) {
-              console.log(`🎉 Game state progressed from ${currentGameState} - stopping background refresh`);
-              if (pollingIntervalRef.current) {
-                clearTimeout(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
-              }
-              // Update state one final time before stopping
-              await updateGameState(gameState.roomId, false);
-              return;
-            }
-            
-            // Only update if significant changes detected (avoid unnecessary re-renders)
-            if (roomStatusChanged || 
-                (refreshAttempts % 3 === 0)) { // Periodic full refresh every 3rd attempt
-              await updateGameState(gameState.roomId, false);
-            } else {
-              console.log(`📊 No significant changes detected, skipping state update`);
-            }
-
           } catch (err) {
             console.warn(`⚠️ Background refresh attempt ${refreshAttempts + 1} failed:`, err);
-            
-            // Exponentially back off on errors to reduce server load
-            const backoffDelay = Math.min(30000, 2000 * Math.pow(2, Math.min(refreshAttempts, 4)));
-            console.log(`⏳ Backing off for ${backoffDelay}ms due to error`);
-            
+
             // After several failed attempts, provide user guidance
             if (refreshAttempts > 6) {
-              setError('Game state monitoring is experiencing issues. You may need to refresh the page or handle timeout manually.');
+              setError('Game resolution is taking longer than expected. You may need to manually resolve the game or handle timeout.');
             }
-            
-            return;
           }
-        } else {
-          console.log(`⏭️ Skipping refresh - only ${Math.round((Date.now() - gameState.lastUpdated) / 1000)}s since last update`);
         }
 
         refreshAttempts++;
@@ -530,18 +369,12 @@ export const useCoinFlipper = () => {
         if (pollingIntervalRef.current) {
           clearTimeout(pollingIntervalRef.current);
         }
-        
-        // Add small random jitter to prevent multiple users from syncing requests
-        const interval = getRefreshInterval(refreshAttempts);
-        const jitter = Math.random() * 500; // Up to 500ms jitter
-        pollingIntervalRef.current = setTimeout(doBackgroundRefresh, interval + jitter);
+        pollingIntervalRef.current = setTimeout(doBackgroundRefresh, getRefreshInterval(refreshAttempts));
       };
 
-      // Start the first refresh with conservative delays to prevent immediate flooding
-      const initialDelay = gameState.gameStatus === 'selecting' ? 3000 : 
-                          gameState.gameStatus === 'waiting' ? 5000 : 4000; // 3s for selecting, 5s for waiting, 4s for resolving
-      
-      console.log(`⏰ Scheduling first background refresh in ${initialDelay}ms for ${gameState.gameStatus} state`);
+      // Start the first refresh - very quick for all active states
+      const initialDelay = gameState.gameStatus === 'selecting' ? 1000 : 
+                          gameState.gameStatus === 'waiting' ? 2000 : 3000; // 1s for selecting, 2s for waiting, 3s for resolving
       pollingIntervalRef.current = setTimeout(doBackgroundRefresh, initialDelay);
     }
 
@@ -555,7 +388,7 @@ export const useCoinFlipper = () => {
   }, [
     gameState.roomId,
     gameState.gameStatus,
-    // Remove gameState.lastUpdated from dependencies to prevent constant re-creation
+    gameState.lastUpdated,
     updateGameState,
     isRpcCircuitOpen,
   ]);
@@ -694,16 +527,14 @@ export const useCoinFlipper = () => {
           throw new Error(`Cannot rejoin room ${roomId}: Game is not in progress (status: ${statusName})`);
         }
 
-        // Check timeout status using creation time + timeout duration
-        if (room.createdAt) {
+        // Check timeout status
+        if (room.selectionDeadline) {
           const now = Math.floor(Date.now() / 1000);
-          const createdAtSeconds = room.createdAt.toNumber ? room.createdAt.toNumber() : Number(room.createdAt);
-          const deadline = createdAtSeconds + PROGRAM_CONFIG.selectionTimeoutSeconds;
+          const deadline = room.selectionDeadline.toNumber
+            ? room.selectionDeadline.toNumber()
+            : room.selectionDeadline;
           const timeoutThreshold = 300; // 5 minutes grace period after deadline
 
-          console.log(`⏰ Rejoin timeout check: Now=${now}, CreatedAt=${createdAtSeconds}, Deadline=${deadline}, Grace=${timeoutThreshold}`);
-          
-          // Re-enable timeout rejection with correct timestamp handling
           if (now > deadline + timeoutThreshold) {
             throw new Error(`Cannot rejoin room ${roomId}: Game has been timed out for too long. Use "Handle Timeout" to claim refunds`);
           }
@@ -745,12 +576,11 @@ export const useCoinFlipper = () => {
       let opponentSelection = false;
       let winner: string | null = null;
       let selectionDeadline: number | null = null;
-      // Calculate selection deadline from creation time
-      // Solana timestamps are already in Unix seconds format
-      if (room.createdAt) {
-        const createdAtSeconds = room.createdAt.toNumber ? room.createdAt.toNumber() : Number(room.createdAt);
-        selectionDeadline = createdAtSeconds + PROGRAM_CONFIG.selectionTimeoutSeconds;
-        console.log(`⏰ Rejoin: Room created at ${new Date(createdAtSeconds * 1000).toLocaleString()}, deadline at ${new Date(selectionDeadline! * 1000).toLocaleString()}`);
+      // Extract selection deadline if available
+      if (room.selectionDeadline) {
+        selectionDeadline = room.selectionDeadline.toNumber
+          ? room.selectionDeadline.toNumber()
+          : room.selectionDeadline;
       }
 
       if (room.status && 'selectionsPending' in room.status) {
@@ -804,11 +634,6 @@ export const useCoinFlipper = () => {
         playerSelection,
         opponentSelection,
       });
-      
-      // Force a state update after rejoining to ensure all users are synchronized
-      setTimeout(() => {
-        updateGameState(roomId, true); // User-initiated refresh to get latest state
-      }, 1000); // Short delay to allow state to settle
 
       return { roomId };
     } catch (err) {
@@ -855,11 +680,10 @@ export const useCoinFlipper = () => {
         winner: null,
         txSignature: tx,
         selectionDeadline: (() => {
-          if (!room || !room.createdAt) return null;
-          const createdAtSeconds = room.createdAt.toNumber ? room.createdAt.toNumber() : Number(room.createdAt);
-          const deadline = createdAtSeconds + PROGRAM_CONFIG.selectionTimeoutSeconds;
-          console.log(`⏰ Join: Room created at ${new Date(createdAtSeconds * 1000).toLocaleString()}, deadline at ${new Date(deadline * 1000).toLocaleString()}`);
-          return deadline;
+          if (!room || !room.selectionDeadline) return null;
+          return room.selectionDeadline.toNumber
+            ? room.selectionDeadline.toNumber()
+            : room.selectionDeadline;
         })(),
         lastUpdated: Date.now(),
         isStale: false,
@@ -869,9 +693,6 @@ export const useCoinFlipper = () => {
       if (process.env.NODE_ENV === 'development') {
         console.log('Room joined:', { roomId, tx: getExplorerUrl(tx) });
       }
-
-      // Broadcast that a player joined
-      broadcastStateChange(roomId, 'player_joined', { tx });
 
       return { roomId, tx };
     } catch (err) {
@@ -925,41 +746,30 @@ export const useCoinFlipper = () => {
           tx: getExplorerUrl(tx),
         });
       }
-      
-      // Broadcast selection to other users/tabs
-      broadcastStateChange(gameState.roomId, 'selection_made', { selection, tx });
 
-      // Enhanced post-selection state management with proper transaction confirmation waiting
+      // Enhanced post-selection state management
       setTimeout(async () => {
         if (gameState.roomId) {
           try {
             console.log('🔄 Post-selection state refresh for room:', gameState.roomId);
-            
-            // Wait for transaction to be fully confirmed and blockchain state to update
-            console.log('⏳ Waiting for blockchain state to update after selection...');
-            await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
-            
-            // FORCE clear the cache to ensure fresh data after selection
-            rpcManager.clearCache();
-            console.log('🗑️ Cache cleared after selection to ensure fresh game state');
-            
             await updateGameState(gameState.roomId, true); // User-initiated after their action
 
-            // Check if both players have now selected - with fresh data
+            // Check if both players have now selected
             const room = await fetchGameRoom(gameState.roomId, true);
             if (room && room.player1Selection && room.player2Selection) {
-              console.log('🎯 Both players have selected - game should auto-resolve');
+              console.log('🎯 Both players have selected - game ready for resolution');
 
-              // Wait longer for the auto-resolution to complete on-chain
-              setTimeout(async () => {
-                console.log('🔄 Final state check after potential auto-resolution');
-                
-                // Additional confirmation delay before final check
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                rpcManager.clearCache(); // Clear cache again
-                await updateGameState(gameState.roomId!, true);
-              }, 5000); // Increased to 5 seconds for auto-resolution
+              // Update local state to reflect readiness for resolution
+              setGameState((prev) => ({
+                ...prev,
+                gameStatus: 'resolving',
+                opponentSelection: true,
+                lastUpdated: Date.now(),
+                isStale: false,
+              }));
+
+              // Clear any existing errors since game is progressing normally
+              setError(null);
             }
           } catch (err) {
             console.warn('⚠️ Failed to refresh game state after selection:', err);
@@ -967,7 +777,7 @@ export const useCoinFlipper = () => {
             setError('Your selection was made successfully, but we\'re having trouble refreshing the game state. Try clicking "Refresh Game State" if needed.');
           }
         }
-      }, 2500); // Increased initial delay to allow transaction confirmation
+      }, 2000); // Reduced delay for faster feedback
 
       return { tx };
     } catch (err) {
@@ -1034,31 +844,24 @@ export const useCoinFlipper = () => {
     leaveGame();
   }, [leaveGame]);
 
-  // Check if a room is timed out based on creation time + timeout duration
+  // Check if a room is timed out based on selectionDeadline
   const isRoomTimedOut = useCallback(async (roomId: number) => {
     if (!program || !publicKey) return false;
     try {
       const room = await fetchGameRoom(roomId);
-      if (!room || !room.createdAt) return false;
-      
+      if (!room || !room.selectionDeadline) return false;
       const now = Math.floor(Date.now() / 1000);
-      const createdAtSeconds = room.createdAt.toNumber ? room.createdAt.toNumber() : room.createdAt;
-      const deadline = createdAtSeconds + PROGRAM_CONFIG.selectionTimeoutSeconds;
-      
+      const deadline = room.selectionDeadline.toNumber
+        ? room.selectionDeadline.toNumber()
+        : room.selectionDeadline;
       console.log('Timeout check:', {
         now,
-        createdAt: createdAtSeconds,
         deadline,
         isTimedOut: now > deadline,
         roomId,
       });
 
-      // Check if timeout has been reached
-      const isTimedOut = now > deadline;
-      if (isTimedOut) {
-        console.log('⏰ Local timeout detection: Game', roomId, 'timed out', Math.floor((now - deadline) / 60), 'minutes ago');
-      }
-      return isTimedOut;
+      return now > deadline;
     } catch (err) {
       console.error('Error checking timeout:', err);
       return false;
@@ -1079,14 +882,9 @@ export const useCoinFlipper = () => {
     const wasLeavingBefore = userWantsToLeaveRef.current;
     userWantsToLeaveRef.current = true;
 
-    let timeoutResult: { tx: string } | undefined;
-
     try {
       console.log('🔄 Handling timeout for room:', roomId);
-      timeoutResult = await handleTimeout(roomId);
-      const { tx } = timeoutResult;
-
-      console.log('✅ Timeout blockchain transaction successful:', tx);
+      const { tx } = await handleTimeout(roomId);
 
       // Clear abandoned room since timeout was successful
       if (abandonedRoomRef.current === roomId) {
@@ -1094,48 +892,13 @@ export const useCoinFlipper = () => {
         console.log('✅ Cleared abandoned room after successful timeout');
       }
 
-      // CRITICAL: Reset leave flag before state updates to allow refresh
-      userWantsToLeaveRef.current = false;
-      console.log('✅ Reset userWantsToLeave flag to allow state updates');
-
-      // First, update local state immediately for responsive UI
-      console.log('📱 Setting local game state to completed...');
-      setGameState((prev) => {
-        const newState = {
-          ...prev,
-          gameStatus: 'completed' as const,
-          winner: 'Game timed out - funds refunded',
-          txSignature: tx,
-          lastUpdated: Date.now(),
-          isStale: false,
-        };
-        console.log('📱 Local state updated:', newState);
-        return newState;
-      });
-
-      // Then refresh from blockchain to ensure consistency
-      console.log('🔄 Refreshing game state from blockchain...');
-      setTimeout(async () => {
-        try {
-          await updateGameState(roomId, true);
-          console.log('✅ Blockchain state refresh completed successfully');
-          
-          // Add notification for successful timeout handling
-          addNotification({
-            type: 'success',
-            title: 'Timeout Handled!',
-            message: 'Game timeout processed successfully. Funds have been refunded.',
-            duration: 8000,
-          });
-          
-          // Broadcast state change to other users/tabs
-          broadcastStateChange(roomId, 'timeout_handled', { tx });
-          
-        } catch (refreshErr) {
-          console.warn('⚠️ Blockchain refresh failed (but timeout transaction was successful):', refreshErr);
-          // Don't throw error since timeout transaction was successful
-        }
-      }, 1000); // Small delay to allow blockchain state to settle
+      // Reset game state after timeout handling
+      setGameState((prev) => ({
+        ...prev,
+        gameStatus: 'completed',
+        winner: 'Game timed out - funds refunded',
+        txSignature: tx,
+      }));
 
       // Log for debugging only in development
       if (process.env.NODE_ENV === 'development') {
@@ -1145,7 +908,7 @@ export const useCoinFlipper = () => {
         });
       }
 
-      return timeoutResult;
+      return { tx };
     } catch (err) {
       const errorObj = err as ErrorType;
       let errorMessage = 'Failed to handle timeout';
@@ -1162,18 +925,16 @@ export const useCoinFlipper = () => {
         errorMessage = 'This game never had a second player. Use "Leave Game" to exit.';
       }
 
-      console.error('❌ Timeout handling failed:', err);
       setError(errorMessage);
       return undefined;
     } finally {
       setLoading(false);
-      // Always restore leave state if we weren't leaving before AND timeout succeeded
-      if (!wasLeavingBefore && timeoutResult) {
+      // Only restore leave state if we weren't leaving before AND timeout succeeded
+      if (!wasLeavingBefore && !error) {
         userWantsToLeaveRef.current = false;
-        console.log('✅ Restored userWantsToLeave flag after successful timeout');
       }
     }
-  }, [program, publicKey, handleTimeout, updateGameState]);
+  }, [program, publicKey, handleTimeout, error]);
 
   // Check for existing games that the player is part of - MANUAL ONLY, NO AUTO-REJOIN
   const checkForExistingGame = useCallback(async () => {
@@ -1226,36 +987,12 @@ export const useCoinFlipper = () => {
     }
   }, [gameState.roomId, updateGameState]);
 
-  const forceRefreshGameState = useCallback(async (roomId?: number) => {
-    const targetRoomId = roomId || gameState.roomId;
-    if (!targetRoomId) {
-      console.warn('⚠️ No room ID provided for force refresh');
-      return;
+  const forceRefreshGameState = useCallback(async () => {
+    if (gameState.roomId) {
+      await forceRefreshGameRoom(gameState.roomId);
+      await updateGameState(gameState.roomId, true);
     }
-    
-    console.log(`🔄 Force refreshing game state for room ${targetRoomId}`);
-    
-    try {
-      // Clear all caches first for completely fresh data
-      clearRpcCache();
-      
-      // Mark state as stale during refresh
-      setGameState((prev) => ({ ...prev, isStale: true }));
-      
-      // Force refresh the specific room data
-      const room = await forceRefreshGameRoom(targetRoomId);
-      if (room) {
-        await updateGameState(targetRoomId, true);
-      } else {
-        console.warn(`Room ${targetRoomId} not found during force refresh`);
-        setError('Room not found. It may have been deleted or completed.');
-      }
-    } catch (err) {
-      console.error('Error in force refresh:', err);
-      setError('Failed to refresh game state. Please try again.');
-      setGameState((prev) => ({ ...prev, isStale: false }));
-    }
-  }, [gameState.roomId, clearRpcCache, forceRefreshGameRoom, updateGameState]);
+  }, [gameState.roomId, forceRefreshGameRoom, updateGameState]);
 
   const refreshAllRooms = useCallback(
     () => forceRefreshAllRooms(),
@@ -1519,32 +1256,27 @@ export const useCoinFlipper = () => {
         return { status: 'Room Missing', issues, recommendations };
       }
 
-      // Check for timeout issues using creation time + timeout duration
-      if (room.createdAt) {
+      // Check for timeout issues
+      if (room.selectionDeadline) {
         const now = Math.floor(Date.now() / 1000);
-        const createdAtSeconds = room.createdAt.toNumber ? room.createdAt.toNumber() : room.createdAt;
-        const deadline = createdAtSeconds + PROGRAM_CONFIG.selectionTimeoutSeconds;
+        const deadline = room.selectionDeadline.toNumber
+          ? room.selectionDeadline.toNumber()
+          : room.selectionDeadline;
 
-        // TEMPORARY: Disable timeout detection in diagnosis
-        // if (now > deadline) {
-        //   issues.push(`Game timed out ${Math.floor((now - deadline) / 60)} minutes ago`);
-        //   recommendations.push('Use "Handle Timeout" to claim refunds');
-        // }
-        console.log('⚠️ Timeout detection in diagnosis temporarily disabled');
+        if (now > deadline) {
+          issues.push(`Game timed out ${Math.floor((now - deadline) / 60)} minutes ago`);
+          recommendations.push('Use "Handle Timeout" to claim refunds');
+        }
       }
 
-      // Check for stuck resolution (VRF fields removed from current program version)
+      // Check for stuck VRF resolution
       if (room.status && 'resolving' in room.status) {
-        // Simple check - if game has been in resolving state for too long
-        if (room.createdAt) {
-          const now = Math.floor(Date.now() / 1000);
-          const createdAtSeconds = room.createdAt.toNumber ? room.createdAt.toNumber() : room.createdAt;
-          const stuckThreshold = 10 * 60; // 10 minutes
-          
-          if (now > createdAtSeconds + stuckThreshold) {
-            issues.push('Game has been resolving for too long');
-            recommendations.push('Try "Handle Timeout" to recover funds');
-          }
+        if (room.vrfStatus && 'pending' in room.vrfStatus) {
+          issues.push('VRF resolution is pending');
+          recommendations.push('Try manual resolution or wait for VRF callback');
+        } else if (room.vrfStatus && 'failed' in room.vrfStatus) {
+          issues.push('VRF resolution failed');
+          recommendations.push('Use "Handle Timeout" to recover funds');
         }
       }
 
@@ -1574,7 +1306,7 @@ export const useCoinFlipper = () => {
           player2: room.player2?.toString(),
           betAmount: room.betAmount?.toNumber(),
           createdAt: room.createdAt?.toNumber(),
-          // Note: selectionDeadline calculated client-side as createdAt + timeout
+          selectionDeadline: room.selectionDeadline?.toNumber(),
         },
       };
     } catch (err) {
