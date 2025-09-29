@@ -1,23 +1,26 @@
 import React from 'react';
 import { Clock, Users, Coins } from 'lucide-react';
-import { useLobbyData } from '../../hooks/useLobbyData';
-import { useCoinFlipper } from '../../hooks/useCoinFlipper';
+import { useAnchorProgram } from '../../hooks/useAnchorProgram';
 
-export const AvailableGames: React.FC = () => {
-  const { availableGames, stats, loading, refreshData } = useLobbyData();
-  const { joinRoom } = useCoinFlipper();
+interface AvailableGamesProps {
+  availableGames?: any[];
+  stats?: any;
+  loading?: boolean;
+}
 
-  const handleJoinGame = async (roomId: string) => {
+export const AvailableGames: React.FC<AvailableGamesProps> = ({ availableGames, stats, loading }) => {
+  const { joinRoom } = useAnchorProgram();
+
+  const handleJoinGame = async (game: any) => {
     try {
-      await joinRoom(parseInt(roomId));
-      // Refresh data after joining
-      refreshData();
+      await joinRoom(parseInt(game.id), game.betAmount);
+      // Note: Parent component will handle data refresh
     } catch (error) {
       console.error('Failed to join game:', error);
     }
   };
 
-  if (availableGames.length === 0) {
+  if (!availableGames || availableGames.length === 0) {
     return (
       <div className="text-center py-12">
         <div className="text-6xl mb-4">🎮</div>
@@ -32,7 +35,7 @@ export const AvailableGames: React.FC = () => {
                 <Users className="w-8 h-8" />
               </div>
               <div className="stat-title">Active Players</div>
-              <div className="stat-value text-primary">{stats.activeGames}</div>
+              <div className="stat-value text-primary">{stats?.activeGames || 0}</div>
               <div className="stat-desc">Currently playing</div>
             </div>
             <div className="stat">
@@ -40,7 +43,7 @@ export const AvailableGames: React.FC = () => {
                 <Clock className="w-8 h-8" />
               </div>
               <div className="stat-title">Waiting Games</div>
-              <div className="stat-value text-secondary">{availableGames.length}</div>
+              <div className="stat-value text-secondary">{availableGames?.length || 0}</div>
               <div className="stat-desc">Ready to join</div>
             </div>
           </div>
@@ -102,7 +105,7 @@ export const AvailableGames: React.FC = () => {
               <div className="card-actions justify-end mt-4">
                 <button
                   className="btn btn-primary btn-sm"
-                  onClick={() => handleJoinGame(game.id)}
+                  onClick={() => handleJoinGame(game)}
                   disabled={loading}
                 >
                   {loading ? 'Joining...' : 'Join Game'}

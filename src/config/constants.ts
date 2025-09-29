@@ -46,7 +46,7 @@ export const SWITCHBOARD_PROGRAM_ID = new PublicKey('SW1TCH7qEPTdLsDHRgPuMQjbQxK
 
 // WebSocket Configuration
 export const WEBSOCKET_CONFIG = {
-  SERVER_URL: process.env.REACT_APP_WS_URL || 'ws://localhost:3001',
+  SERVER_URL: process.env.REACT_APP_WEBSOCKET_URL || process.env.REACT_APP_WS_URL || 'http://localhost:4000',
   CONNECTION_TIMEOUT: 10000, // 10 seconds
   HEARTBEAT_INTERVAL: 30000, // 30 seconds
   RECONNECT_DELAY: 1000, // 1 second

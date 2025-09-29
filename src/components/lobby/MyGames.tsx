@@ -1,19 +1,24 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Play, Clock, Trophy, X } from 'lucide-react';
-import { useLobbyData } from '../../hooks/useLobbyData';
-import { useCoinFlipper } from '../../hooks/useCoinFlipper';
+import { useAnchorProgram } from '../../hooks/useAnchorProgram';
 
-export const MyGames: React.FC = () => {
+interface MyGamesProps {
+  myGames?: any[];
+  loading?: boolean;
+}
+
+export const MyGames: React.FC<MyGamesProps> = ({ myGames, loading }) => {
+  const navigate = useNavigate();
   const { connected } = useWallet();
-  const { myGames, loading, refreshData } = useLobbyData();
-  const { cancelRoom, rejoinRoom } = useCoinFlipper();
+  const { cancelRoom } = useAnchorProgram();
   const [filter, setFilter] = useState<'all' | 'created' | 'joined' | 'waiting'>('all');
 
   const handleCancelGame = async (roomId: string) => {
     try {
       await cancelRoom(parseInt(roomId));
-      refreshData();
+      // Note: Parent component will handle data refresh
     } catch (error) {
       console.error('Failed to cancel game:', error);
     }
@@ -21,14 +26,15 @@ export const MyGames: React.FC = () => {
 
   const handleContinueGame = async (roomId: string) => {
     try {
-      await rejoinRoom(parseInt(roomId));
-      refreshData();
+      // Navigate directly to the game room - GameRoomPage will handle loading the game state
+      navigate(`/game/${roomId}`);
+      // Note: Parent component will handle data refresh
     } catch (error) {
       console.error('Failed to continue game:', error);
     }
   };
 
-  const filteredGames = myGames.filter(game => {
+  const filteredGames = (myGames || []).filter(game => {
     if (filter === 'all') return true;
     if (filter === 'created') return game.role === 'creator';
     if (filter === 'joined') return game.role === 'joiner';
@@ -48,7 +54,7 @@ export const MyGames: React.FC = () => {
     );
   }
 
-  if (filteredGames.length === 0 && myGames.length === 0) {
+  if (filteredGames.length === 0 && (!myGames || myGames.length === 0)) {
     return (
       <div className="text-center py-12">
         <div className="text-6xl mb-4">🎲</div>
@@ -161,14 +167,27 @@ export const MyGames: React.FC = () => {
 
                 <div className="flex gap-2">
                   {game.status === 'waiting' && game.role === 'creator' && (
-                    <button
-                      className="btn btn-sm btn-error btn-outline gap-1"
-                      onClick={() => handleCancelGame(game.id)}
-                      disabled={loading}
-                    >
-                      <X className="w-3 h-3" />
-                      Cancel
-                    </button>
+                    <>
+                      <button
+                        className="btn btn-sm btn-primary btn-outline"
+                        onClick={() => {
+                          const gameUrl = `${window.location.origin}/game/${game.id}`;
+                          navigator.clipboard.writeText(gameUrl);
+                          console.log('Game link copied:', gameUrl);
+                        }}
+                        title="Share this link with a friend to join"
+                      >
+                        📋 Copy Link
+                      </button>
+                      <button
+                        className="btn btn-sm btn-error btn-outline gap-1"
+                        onClick={() => handleCancelGame(game.id)}
+                        disabled={loading}
+                      >
+                        <X className="w-3 h-3" />
+                        Cancel
+                      </button>
+                    </>
                   )}
                   {game.status === 'active' && (
                     <button

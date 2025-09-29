@@ -86,7 +86,7 @@ class CoinFlipperDeployment {
         console.log(`🏠 House wallet loaded: ${keypair.publicKey.toString()}`);
         return { publicKey: keypair.publicKey, keypair };
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log(`⚠️  Could not load house wallet: ${error.message}`);
     }
 
@@ -130,7 +130,7 @@ class CoinFlipperDeployment {
         );
         await this.connection.confirmTransaction(signature, 'confirmed');
         console.log(`✅ Airdrop completed: ${signature}`);
-      } catch (error) {
+      } catch (error: any) {
         console.warn(`⚠️  Airdrop failed: ${error.message}`);
       }
     }

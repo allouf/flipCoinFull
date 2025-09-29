@@ -10,12 +10,11 @@ export interface GameState {
   roomId: number | null;
   isCreator: boolean;
   betAmount: number;
-  playerSelection: 'heads' | 'tails' | null;
+  playerSelection: 'heads' | 'tails' | 'pending' | 'lost' | null;
   opponentSelection: boolean;
   gameStatus: 'idle' | 'waiting' | 'selecting' | 'resolving' | 'completed';
   winner: string | null;
   txSignature: string | null;
-  selectionDeadline: number | null; // Unix timestamp in seconds
   lastUpdated: number; // Timestamp for optimistic UI updates
   isStale: boolean; // Indicates if data might be outdated
 }
@@ -25,12 +24,13 @@ interface ErrorType {
 }
 
 export const useCoinFlipper = () => {
-  const { publicKey } = useWallet();
+  const { publicKey, wallet } = useWallet();
   const {
     program,
     createRoom,
     joinRoom,
     makeSelection,
+    revealChoice,
     resolveGame,
     fetchGameRoom,
     fetchAllGameRooms,
@@ -52,7 +52,6 @@ export const useCoinFlipper = () => {
     gameStatus: 'idle',
     winner: null,
     txSignature: null,
-    selectionDeadline: null,
     lastUpdated: Date.now(),
     isStale: false,
   });
@@ -110,19 +109,27 @@ export const useCoinFlipper = () => {
 
       // Determine game status based on room state
       let gameStatus: 'waiting' | 'selecting' | 'resolving' | 'completed' = 'waiting';
-      let playerSelection: 'heads' | 'tails' | null = null;
+      let playerSelection: 'heads' | 'tails' | 'pending' | 'lost' | null = null;
       let opponentSelection = false;
       let winner: string | null = null;
-      let selectionDeadline: number | null = null;
-      // Extract selection deadline if available
-      if (room.selectionDeadline) {
-        selectionDeadline = room.selectionDeadline.toNumber
-          ? room.selectionDeadline.toNumber()
-          : room.selectionDeadline;
-      }
+
+      // Debug: Log the actual room status structure
+      console.log('🔍 Room status debug:', {
+        roomId,
+        status: room.status,
+        statusKeys: room.status ? Object.keys(room.status) : 'no status'
+      });
 
       if (room.status && 'waitingForPlayer' in room.status) {
         gameStatus = 'waiting';
+      } else if (room.status && 'playersReady' in room.status) {
+        gameStatus = 'selecting'; // Players ready to make commitments
+      } else if (room.status && 'commitmentsReady' in room.status) {
+        gameStatus = 'resolving'; // Both commitments made, ready to reveal
+        console.log('🎯 Game in CommitmentsReady state - ready for reveals');
+      } else if (room.status && 'revealingPhase' in room.status) {
+        gameStatus = 'resolving'; // Players revealing their choices
+        console.log('🎯 Game in RevealingPhase state - players revealing');
       } else if (room.status && 'selectionsPending' in room.status) {
         // Check if both players have made selections
         const bothSelected = room.player1Selection && room.player2Selection;
@@ -181,8 +188,7 @@ export const useCoinFlipper = () => {
           opponentSelection,
           gameStatus,
           winner,
-          selectionDeadline,
-          lastUpdated: Date.now(),
+            lastUpdated: Date.now(),
           isStale: false,
         };
 
@@ -274,7 +280,7 @@ export const useCoinFlipper = () => {
     // Enhanced background refresh for all active game states
     if (
       gameState.roomId
-      && (gameState.gameStatus === 'resolving' || gameState.gameStatus === 'waiting' || gameState.gameStatus === 'selecting')
+      && (gameState.gameStatus === 'waiting' || gameState.gameStatus === 'selecting')
       && !isRpcCircuitOpen()
       && !userWantsToLeaveRef.current
     ) {
@@ -396,6 +402,51 @@ export const useCoinFlipper = () => {
   // Backward compatibility alias for checkGameStatus
   const checkGameStatus = updateGameState;
 
+  // Auto-reveal when game is in CommitmentsReady state
+  useEffect(() => {
+    const autoReveal = async () => {
+      if (!gameState.roomId || !revealChoice) return;
+
+      // Check if we have a stored commitment for this room
+      const commitmentDataStr = localStorage.getItem(`commitment_${gameState.roomId}`);
+      if (!commitmentDataStr) {
+        console.log('⚠️ No commitment found for room, cannot auto-reveal');
+        return;
+      }
+
+      // DISABLE auto-reveal for CommitmentsReady - users must manually reveal
+      // Auto-resolve only happens on the second reveal within the smart contract
+      console.log(`⚠️ Auto-reveal disabled - users must manually reveal their choices (current: ${gameState.gameStatus})`);
+      return;
+
+      console.log('🎯 Auto-revealing choice for CommitmentsReady game', {
+        roomId: gameState.roomId,
+        status: gameState.gameStatus,
+        hasCommitment: !!commitmentDataStr
+      });
+
+      try {
+        if (!gameState.roomId) return;
+        const roomId = gameState.roomId as number; // Type assertion since we know it's not null after the check
+        const result = await revealChoice(roomId);
+        if (result) {
+          console.log('✅ Auto-reveal successful:', result.tx);
+          // Update game state after successful reveal
+          await updateGameState(roomId);
+        }
+      } catch (error: any) {
+        console.error('❌ Auto-reveal failed:', error);
+        // Show error to user so they can manually reveal
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        setError(`Auto-reveal failed: ${errorMessage}. Please use the manual reveal button.`);
+      }
+    };
+
+    // Small delay to avoid racing conditions
+    const timer = setTimeout(autoReveal, 2000);
+    return () => clearTimeout(timer);
+  }, [gameState.roomId, gameState.gameStatus, revealChoice, updateGameState]);
+
   // Create a new game room
   const handleCreateRoom = useCallback(async (betAmountSol: number) => {
     if (!program || !publicKey) {
@@ -434,7 +485,7 @@ export const useCoinFlipper = () => {
         gameStatus: 'waiting',
         winner: null,
         txSignature: tx,
-        selectionDeadline: null, // Will be set when room transitions to selecting
+ // Will be set when room transitions to selecting
         lastUpdated: Date.now(),
         isStale: false,
       });
@@ -509,7 +560,10 @@ export const useCoinFlipper = () => {
 
         // Check if game is still in progress
         const isGameInProgress = room.status && (
-          'selectionsPending' in room.status
+          'playersReady' in room.status
+          || 'commitmentsReady' in room.status
+          || 'revealingPhase' in room.status
+          || 'selectionsPending' in room.status // Legacy support
           || 'resolving' in room.status
         );
 
@@ -527,17 +581,14 @@ export const useCoinFlipper = () => {
           throw new Error(`Cannot rejoin room ${roomId}: Game is not in progress (status: ${statusName})`);
         }
 
-        // Check timeout status
-        if (room.selectionDeadline) {
-          const now = Math.floor(Date.now() / 1000);
-          const deadline = room.selectionDeadline.toNumber
-            ? room.selectionDeadline.toNumber()
-            : room.selectionDeadline;
-          const timeoutThreshold = 300; // 5 minutes grace period after deadline
+        // Check timeout status based on creation time
+        const now = Math.floor(Date.now() / 1000);
+        const createdAt = room.createdAt?.toNumber() || 0;
+        const gameAge = now - createdAt;
+        const timeoutThreshold = 1800; // 30 minutes
 
-          if (now > deadline + timeoutThreshold) {
-            throw new Error(`Cannot rejoin room ${roomId}: Game has been timed out for too long. Use "Handle Timeout" to claim refunds`);
-          }
+        if (gameAge > timeoutThreshold) {
+          throw new Error(`Cannot rejoin room ${roomId}: Game has been timed out for too long. Use "Handle Timeout" to claim refunds`);
         }
 
         // All checks passed - allow rejoin
@@ -572,18 +623,75 @@ export const useCoinFlipper = () => {
 
       // Determine game status based on room state
       let gameStatus: 'waiting' | 'selecting' | 'resolving' | 'completed' = 'waiting';
-      let playerSelection: 'heads' | 'tails' | null = null;
+      let playerSelection: 'heads' | 'tails' | 'pending' | 'lost' | null = null;
       let opponentSelection = false;
       let winner: string | null = null;
-      let selectionDeadline: number | null = null;
-      // Extract selection deadline if available
-      if (room.selectionDeadline) {
-        selectionDeadline = room.selectionDeadline.toNumber
-          ? room.selectionDeadline.toNumber()
-          : room.selectionDeadline;
-      }
 
-      if (room.status && 'selectionsPending' in room.status) {
+      // Debug: Log the actual room status structure
+      console.log('🔍 Room status debug:', {
+        roomId,
+        status: room.status,
+        statusKeys: room.status ? Object.keys(room.status) : 'no status'
+      });
+
+      if (room.status && 'waitingForPlayer' in room.status) {
+        gameStatus = 'waiting';
+      } else if (room.status && 'playersReady' in room.status) {
+        gameStatus = 'selecting'; // Players ready to make commitments
+      } else if (room.status && 'commitmentsReady' in room.status) {
+        gameStatus = 'resolving'; // Both commitments made, ready to reveal
+        console.log('🎯 Rejoined game in CommitmentsReady state - ready for reveals');
+
+        // Check if the current player has a commitment stored (backend first, then localStorage)
+        let hasCommitment = false;
+
+        // First try backend if publicKey is available
+        if (publicKey) {
+          try {
+            const { getCommitment } = await import('../services/commitmentService');
+            const backendCommitment = await getCommitment(publicKey.toString(), roomId);
+            if (backendCommitment) {
+              hasCommitment = true;
+              console.log('✅ Found commitment in backend database for room', roomId);
+            }
+          } catch (error) {
+            console.log('⚠️ Could not check backend for commitment:', error);
+          }
+        }
+
+        // Fallback to localStorage
+        if (!hasCommitment) {
+          const hasLocalCommitment = !!localStorage.getItem(`commitment_${roomId}`);
+          if (hasLocalCommitment) {
+            hasCommitment = true;
+            console.log('✅ Found commitment in localStorage fallback for room', roomId);
+          }
+        }
+
+        if (hasCommitment) {
+          // We have a commitment stored, so mark that we've made a selection
+          playerSelection = 'pending'; // Use a special marker since we don't know the actual choice until reveal
+        } else {
+          console.log('⚠️ No commitment found in backend or localStorage - checking on-chain status');
+          // Check if we're one of the players and have made a commitment on-chain
+          const commitmentA = (room as any).commitmentA;
+          const commitmentB = (room as any).commitmentB;
+          const isNonZeroCommitmentA = commitmentA && commitmentA.some((byte: number) => byte !== 0);
+          const isNonZeroCommitmentB = commitmentB && commitmentB.some((byte: number) => byte !== 0);
+
+          if (isPlayer1 && isNonZeroCommitmentA) {
+            console.log('⚠️ You are Player A and have a commitment on-chain but not stored locally!');
+            // This is a problem - we need the original secret to reveal
+            playerSelection = 'lost'; // Mark as lost commitment
+          } else if (isPlayer2 && isNonZeroCommitmentB) {
+            console.log('⚠️ You are Player B and have a commitment on-chain but not stored locally!');
+            playerSelection = 'lost'; // Mark as lost commitment
+          }
+        }
+      } else if (room.status && 'revealingPhase' in room.status) {
+        gameStatus = 'resolving'; // Players revealing their choices
+        console.log('🎯 Rejoined game in RevealingPhase state - players revealing');
+      } else if (room.status && 'selectionsPending' in room.status) {
         gameStatus = 'selecting';
         // Check if current player has already made selection
         if (isPlayer1 && room.player1Selection) {
@@ -623,7 +731,6 @@ export const useCoinFlipper = () => {
         gameStatus,
         winner,
         txSignature: null, // No new transaction for rejoining
-        selectionDeadline,
         lastUpdated: Date.now(),
         isStale: false,
       });
@@ -679,12 +786,6 @@ export const useCoinFlipper = () => {
         gameStatus: 'selecting',
         winner: null,
         txSignature: tx,
-        selectionDeadline: (() => {
-          if (!room || !room.selectionDeadline) return null;
-          return room.selectionDeadline.toNumber
-            ? room.selectionDeadline.toNumber()
-            : room.selectionDeadline;
-        })(),
         lastUpdated: Date.now(),
         isStale: false,
       });
@@ -830,7 +931,6 @@ export const useCoinFlipper = () => {
       gameStatus: 'idle',
       winner: null,
       txSignature: null,
-      selectionDeadline: null,
       lastUpdated: Date.now(),
       isStale: false,
     });
@@ -844,24 +944,25 @@ export const useCoinFlipper = () => {
     leaveGame();
   }, [leaveGame]);
 
-  // Check if a room is timed out based on selectionDeadline
+  // Check if a room is timed out based on creation time
   const isRoomTimedOut = useCallback(async (roomId: number) => {
     if (!program || !publicKey) return false;
     try {
       const room = await fetchGameRoom(roomId);
-      if (!room || !room.selectionDeadline) return false;
+      if (!room) return false;
       const now = Math.floor(Date.now() / 1000);
-      const deadline = room.selectionDeadline.toNumber
-        ? room.selectionDeadline.toNumber()
-        : room.selectionDeadline;
+      const createdAt = room.createdAt?.toNumber() || 0;
+      const gameAge = now - createdAt;
+      const timeoutThreshold = 1800; // 30 minutes
       console.log('Timeout check:', {
         now,
-        deadline,
-        isTimedOut: now > deadline,
+        createdAt,
+        gameAge,
+        isTimedOut: gameAge > timeoutThreshold,
         roomId,
       });
 
-      return now > deadline;
+      return gameAge > timeoutThreshold;
     } catch (err) {
       console.error('Error checking timeout:', err);
       return false;
@@ -1042,7 +1143,6 @@ export const useCoinFlipper = () => {
       gameStatus: 'idle',
       winner: null,
       txSignature: null,
-      selectionDeadline: null,
       lastUpdated: Date.now(),
       isStale: false,
     });
@@ -1078,7 +1178,6 @@ export const useCoinFlipper = () => {
       gameStatus: 'idle',
       winner: null,
       txSignature: null,
-      selectionDeadline: null,
       lastUpdated: Date.now(),
       isStale: false,
     });
@@ -1256,28 +1355,21 @@ export const useCoinFlipper = () => {
         return { status: 'Room Missing', issues, recommendations };
       }
 
-      // Check for timeout issues
-      if (room.selectionDeadline) {
-        const now = Math.floor(Date.now() / 1000);
-        const deadline = room.selectionDeadline.toNumber
-          ? room.selectionDeadline.toNumber()
-          : room.selectionDeadline;
+      // Check for timeout issues based on creation time
+      const now = Math.floor(Date.now() / 1000);
+      const createdAt = room.createdAt?.toNumber() || 0;
+      const gameAge = now - createdAt;
+      const timeoutThreshold = 1800; // 30 minutes
 
-        if (now > deadline) {
-          issues.push(`Game timed out ${Math.floor((now - deadline) / 60)} minutes ago`);
-          recommendations.push('Use "Handle Timeout" to claim refunds');
-        }
+      if (gameAge > timeoutThreshold) {
+        issues.push(`Game created ${Math.floor(gameAge / 60)} minutes ago`);
+        recommendations.push('Use "Handle Timeout" to claim refunds');
       }
 
-      // Check for stuck VRF resolution
+      // Check if game is in resolving state
       if (room.status && 'resolving' in room.status) {
-        if (room.vrfStatus && 'pending' in room.vrfStatus) {
-          issues.push('VRF resolution is pending');
-          recommendations.push('Try manual resolution or wait for VRF callback');
-        } else if (room.vrfStatus && 'failed' in room.vrfStatus) {
-          issues.push('VRF resolution failed');
-          recommendations.push('Use "Handle Timeout" to recover funds');
-        }
+        issues.push('Game is being resolved');
+        recommendations.push('Wait for resolution to complete');
       }
 
       // Check player participation
@@ -1306,7 +1398,6 @@ export const useCoinFlipper = () => {
           player2: room.player2?.toString(),
           betAmount: room.betAmount?.toNumber(),
           createdAt: room.createdAt?.toNumber(),
-          selectionDeadline: room.selectionDeadline?.toNumber(),
         },
       };
     } catch (err) {
@@ -1331,6 +1422,7 @@ export const useCoinFlipper = () => {
     joinRoom: handleJoinRoom,
     rejoinRoom: handleRejoinRoom,
     makeSelection: handleMakeSelection,
+    revealChoice, // Reveal choice after commitment
     resolveGame, // VRF resolution function (internal use)
     resolveGameManually, // User-initiated VRF resolution
     checkGameStatus: updateGameState, // Alias for backward compatibility

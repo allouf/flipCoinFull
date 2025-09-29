@@ -91,7 +91,19 @@
       "Bash(git pull:*)",
       "Bash(git count-objects:*)",
       "Bash(vercel:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(set NODE_OPTIONS=--max-old-space-size=8192)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(ANCHOR_PROVIDER_URL=https://api.devnet.solana.com npm run deploy:init)",
+      "Bash(lsof:*)",
+      "Bash(PORT=3004 node server-simple.js)",
+      "Bash(PORT=3004 node server-prisma.js)",
+      "Bash(/dev/null)",
+      "Bash(PORT=3004 npm start)",
+      "Bash(PORT=3005 npm start)",
+      "Bash(PORT=3010 npm start)",
+      "Bash(PORT=4000 node server.js)"
     ],
     "deny": [],
     "ask": []

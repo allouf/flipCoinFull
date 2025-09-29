@@ -63,8 +63,10 @@ export class WebSocketManager extends EventEmitter {
 
   /**
    * Initialize WebSocket connection
+   * @param serverUrl Optional server URL
+   * @param walletAddress Optional wallet address for identification
    */
-  public async connect(serverUrl?: string): Promise<void> {
+  public async connect(serverUrl?: string, walletAddress?: string): Promise<void> {
     const url = serverUrl || WEBSOCKET_CONFIG.SERVER_URL;
 
     try {
@@ -84,6 +86,12 @@ export class WebSocketManager extends EventEmitter {
 
         this.socket.on('connect', () => {
           this.handleConnect();
+
+          // Identify with wallet address if provided
+          if (walletAddress && this.socket) {
+            this.socket.emit('identify', { walletAddress });
+          }
+
           resolve();
         });
 
@@ -178,7 +186,11 @@ export class WebSocketManager extends EventEmitter {
 
     // Game event handlers
     this.socket.on('game_event', this.handleGameEvent.bind(this));
+    this.socket.on('game_update', this.handleGameEvent.bind(this));
+    this.socket.on('lobby_update', this.handleLobbyUpdate.bind(this));
     this.socket.on('room_update', this.handleRoomUpdate.bind(this));
+    this.socket.on('room_state', this.handleRoomUpdate.bind(this));
+    this.socket.on('chat_message', this.handleChatMessage.bind(this));
 
     // Heartbeat response
     this.socket.on('pong', this.handlePong.bind(this));
@@ -239,8 +251,21 @@ export class WebSocketManager extends EventEmitter {
    * Handle room updates
    */
   private handleRoomUpdate(data: any): void {
-    // TODO: Process room-specific updates
     this.emit('roomUpdate', data);
+  }
+
+  /**
+   * Handle lobby updates
+   */
+  private handleLobbyUpdate(data: any): void {
+    this.emit('lobbyUpdate', data);
+  }
+
+  /**
+   * Handle chat messages
+   */
+  private handleChatMessage(data: any): void {
+    this.emit('chatMessage', data);
   }
 
   /**

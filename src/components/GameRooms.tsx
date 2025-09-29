@@ -11,7 +11,18 @@ interface GameRoomsProps {
 export const GameRooms: React.FC<GameRoomsProps> = ({ onJoinGame }) => {
   const { connected, publicKey } = useWallet();
   const { games, isLoading, error, lastRefresh, refreshGames, generateGameShareUrl } = useGameDiscovery();
-  const { joinExistingGame, gameState } = useFairCoinFlipper();
+  const fairCoinFlipperResult = useFairCoinFlipper();
+
+  // Handle when wallet is not connected
+  if (!fairCoinFlipperResult) {
+    return (
+      <div className="text-center p-8">
+        <p className="text-gray-600">Please connect your wallet to access game rooms.</p>
+      </div>
+    );
+  }
+
+  const { joinExistingGame, gameState } = fairCoinFlipperResult;
 
   // Filter states
   const [betRangeFilter, setBetRangeFilter] = useState<{ min: number; max: number }>({ min: 0, max: 100 });

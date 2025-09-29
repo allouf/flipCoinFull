@@ -199,7 +199,9 @@ export class EventSubscriptionManager extends EventEmitter {
             // Cleanup old cache entries (keep last 1000 events)
             if (this.eventCache.size > 1000) {
               const firstKey = this.eventCache.keys().next().value;
-              this.eventCache.delete(firstKey);
+              if (firstKey !== undefined) {
+                this.eventCache.delete(firstKey);
+              }
             }
           }
         }

@@ -195,7 +195,7 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
       return false;
     }
     // Check if current wallet is one of the players
-    const isPlayer1 = room.player1.toString() === publicKey.toString();
+    const isPlayer1 = room.player1?.toString() === publicKey.toString();
     const isPlayer2 = room.player2 && room.player2.toString() === publicKey.toString();
     return isPlayer1 || isPlayer2;
   };
@@ -203,7 +203,7 @@ const RoomBrowser: React.FC<RoomBrowserProps> = ({ onJoinRoom, onRejoinRoom }) =
   // Helper functions for room categorization
   const isMyRoom = (room: GameRoom) => {
     if (!publicKey) return false;
-    const isPlayer1 = room.player1.toString() === publicKey.toString();
+    const isPlayer1 = room.player1?.toString() === publicKey.toString();
     const isPlayer2 = room.player2 && room.player2.toString() === publicKey.toString();
     return isPlayer1 || isPlayer2;
   };

@@ -1,11 +1,15 @@
 import React from 'react';
 import { Play, Eye } from 'lucide-react';
-import { useLobbyData } from '../../hooks/useLobbyData';
 
-export const RunningGames: React.FC = () => {
-  const { runningGames, stats } = useLobbyData();
+interface RunningGamesProps {
+  runningGames?: any[];
+  stats?: any;
+  loading?: boolean;
+}
 
-  if (runningGames.length === 0) {
+export const RunningGames: React.FC<RunningGamesProps> = ({ runningGames, stats, loading }) => {
+
+  if (!runningGames || runningGames.length === 0) {
     return (
       <div className="text-center py-12">
         <div className="text-6xl mb-4">⏳</div>

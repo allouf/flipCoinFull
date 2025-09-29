@@ -1,16 +1,19 @@
 import React, { useState, useMemo } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Trophy, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
-import { useLobbyData } from '../../hooks/useLobbyData';
 
-export const GameHistory: React.FC = () => {
+interface GameHistoryProps {
+  gameHistory?: any[];
+  loading?: boolean;
+}
+
+export const GameHistory: React.FC<GameHistoryProps> = ({ gameHistory, loading }) => {
   const { connected } = useWallet();
-  const { gameHistory, loading } = useLobbyData();
   const [filter, setFilter] = useState<'all' | 'wins' | 'losses'>('all');
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
 
   const filteredHistory = useMemo(() => {
-    let filtered = gameHistory;
+    let filtered = gameHistory || [];
 
     // Filter by result
     if (filter === 'wins') {
@@ -63,7 +66,7 @@ export const GameHistory: React.FC = () => {
     );
   }
 
-  if (gameHistory.length === 0) {
+  if (!gameHistory || gameHistory.length === 0) {
     return (
       <div className="text-center py-12">
         <div className="text-6xl mb-4">📈</div>

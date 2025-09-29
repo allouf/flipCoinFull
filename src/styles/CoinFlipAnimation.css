@@ -1,1 +1,486 @@
-/* =================\n   Coin Flip Animation Styles\n   ================= */\n\n.coin-flip-animation {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  padding: 3rem;\n  min-height: 500px;\n  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n  border-radius: 20px;\n  position: relative;\n  overflow: hidden;\n  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;\n}\n\n/* Animation Container */\n.animation-container {\n  position: relative;\n  width: 300px;\n  height: 300px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  perspective: 1000px;\n  margin-bottom: 2rem;\n}\n\n/* 3D Coin */\n.coin-3d-flip {\n  position: relative;\n  width: 150px;\n  height: 150px;\n  transform-style: preserve-3d;\n  transition: none; /* Controlled by animation */\n}\n\n/* Coin Faces */\n.coin-face-flip {\n  position: absolute;\n  width: 100%;\n  height: 100%;\n  border-radius: 50%;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  backface-visibility: hidden;\n  box-shadow: \n    0 0 30px rgba(255, 255, 255, 0.3),\n    inset 0 0 30px rgba(0, 0, 0, 0.1);\n}\n\n.coin-face-flip.coin-heads {\n  background: \n    radial-gradient(circle at 30% 30%, #ffd700, #ffed4a, #f59e0b);\n  border: 4px solid #d97706;\n  transform: rotateX(0deg);\n}\n\n.coin-face-flip.coin-tails {\n  background: \n    radial-gradient(circle at 30% 30%, #e5e7eb, #f3f4f6, #d1d5db);\n  border: 4px solid #6b7280;\n  transform: rotateX(180deg);\n}\n\n/* Coin Content */\n.coin-content {\n  position: relative;\n  width: 100%;\n  height: 100%;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  border-radius: 50%;\n}\n\n.coin-border-ring {\n  position: absolute;\n  top: 12px;\n  left: 12px;\n  right: 12px;\n  bottom: 12px;\n  border: 3px dashed rgba(0, 0, 0, 0.2);\n  border-radius: 50%;\n  animation: rotate-ring 20s linear infinite;\n}\n\n.coin-inner {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 0.25rem;\n  z-index: 2;\n}\n\n.coin-symbol {\n  font-size: 3.5rem;\n  font-weight: 900;\n  color: #1f2937;\n  text-shadow: \n    0 2px 4px rgba(0, 0, 0, 0.3),\n    0 0 10px rgba(255, 255, 255, 0.5);\n  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));\n}\n\n.coin-text {\n  font-size: 0.8rem;\n  font-weight: 700;\n  color: #4b5563;\n  letter-spacing: 0.1em;\n  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);\n}\n\n/* Particle Effects */\n.flip-particles {\n  position: absolute;\n  top: 50%;\n  left: 50%;\n  width: 200px;\n  height: 200px;\n  margin: -100px 0 0 -100px;\n  pointer-events: none;\n}\n\n.particle {\n  position: absolute;\n  top: 50%;\n  left: 50%;\n  width: 4px;\n  height: 4px;\n  background: radial-gradient(circle, #fbbf24, #f59e0b);\n  border-radius: 50%;\n  animation: particle-burst 0.8s ease-out forwards;\n  box-shadow: 0 0 6px #fbbf24;\n}\n\n/* Ground Shadow */\n.coin-shadow {\n  position: absolute;\n  bottom: -20px;\n  left: 50%;\n  transform: translateX(-50%);\n  width: 80px;\n  height: 20px;\n  background: radial-gradient(\n    ellipse,\n    rgba(0, 0, 0, 0.4) 0%,\n    rgba(0, 0, 0, 0.2) 50%,\n    transparent 100%\n  );\n  border-radius: 50%;\n  transition: all 0.3s ease;\n}\n\n.coin-shadow.shadow-impact {\n  animation: shadow-impact 0.3s ease-out;\n}\n\n/* Status Display */\n.animation-status {\n  text-align: center;\n  color: white;\n  margin-bottom: 2rem;\n}\n\n.status-text {\n  font-size: 1.3rem;\n  font-weight: 600;\n  margin-bottom: 1rem;\n  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);\n  min-height: 1.8rem;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n/* Progress Bar */\n.progress-container {\n  width: 200px;\n  height: 6px;\n  background: rgba(255, 255, 255, 0.2);\n  border-radius: 3px;\n  overflow: hidden;\n  backdrop-filter: blur(10px);\n}\n\n.progress-bar {\n  height: 100%;\n  background: linear-gradient(90deg, #10b981, #34d399);\n  border-radius: 3px;\n  transition: width 0.1s ease;\n  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);\n}\n\n/* Result Display */\n.result-display {\n  text-align: center;\n  margin-top: 1rem;\n}\n\n.result-card {\n  background: rgba(255, 255, 255, 0.95);\n  backdrop-filter: blur(20px);\n  border: 1px solid rgba(255, 255, 255, 0.3);\n  border-radius: 16px;\n  padding: 2rem;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 1rem;\n  box-shadow: \n    0 20px 40px rgba(0, 0, 0, 0.1),\n    0 0 0 1px rgba(255, 255, 255, 0.1);\n}\n\n.result-icon {\n  font-size: 3rem;\n  animation: icon-bounce 0.6s ease-out;\n}\n\n.result-text {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 0.5rem;\n}\n\n.result-label {\n  font-size: 1rem;\n  color: #6b7280;\n  font-weight: 500;\n}\n\n.result-value {\n  font-size: 2rem;\n  font-weight: 800;\n  text-transform: uppercase;\n  letter-spacing: 0.05em;\n}\n\n.result-value.heads {\n  color: #f59e0b;\n  text-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);\n}\n\n.result-value.tails {\n  color: #6b7280;\n  text-shadow: 0 2px 4px rgba(107, 114, 128, 0.3);\n}\n\n/* Start Button */\n.start-flip-btn {\n  background: linear-gradient(135deg, #10b981, #059669);\n  border: none;\n  border-radius: 12px;\n  color: white;\n  font-size: 1.2rem;\n  font-weight: 600;\n  padding: 1rem 2rem;\n  cursor: pointer;\n  transition: all 0.2s ease;\n  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);\n  margin-top: 1rem;\n}\n\n.start-flip-btn:hover {\n  transform: translateY(-2px);\n  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);\n}\n\n.start-flip-btn:active {\n  transform: translateY(0);\n  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);\n}\n\n.start-flip-btn:disabled {\n  opacity: 0.6;\n  cursor: not-allowed;\n  transform: none;\n  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);\n}\n\n/* Animations */\n@keyframes rotate-ring {\n  from { transform: rotate(0deg); }\n  to { transform: rotate(360deg); }\n}\n\n@keyframes particle-burst {\n  0% {\n    opacity: 1;\n    transform: translate(-2px, -2px) scale(0.5);\n  }\n  50% {\n    opacity: 0.8;\n    transform: translate(-2px, -2px) scale(1.2);\n  }\n  100% {\n    opacity: 0;\n    transform: translate(-40px, -40px) scale(0.2);\n  }\n}\n\n@keyframes shadow-impact {\n  0% { transform: translateX(-50%) scale(1); }\n  50% { transform: translateX(-50%) scale(1.3); }\n  100% { transform: translateX(-50%) scale(1); }\n}\n\n@keyframes icon-bounce {\n  0% { transform: scale(0) rotate(-180deg); }\n  50% { transform: scale(1.2) rotate(-90deg); }\n  100% { transform: scale(1) rotate(0deg); }\n}\n\n@keyframes animate-result-in {\n  0% {\n    opacity: 0;\n    transform: translateY(20px) scale(0.9);\n  }\n  100% {\n    opacity: 1;\n    transform: translateY(0) scale(1);\n  }\n}\n\n.animate-result-in {\n  animation: animate-result-in 0.5s ease-out;\n}\n\n/* Background Effects */\n.coin-flip-animation::before {\n  content: '';\n  position: absolute;\n  top: -50%;\n  left: -50%;\n  width: 200%;\n  height: 200%;\n  background: \n    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.1), transparent 50%),\n    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.05), transparent 50%);\n  animation: bg-float 10s ease-in-out infinite;\n  pointer-events: none;\n}\n\n@keyframes bg-float {\n  0%, 100% { transform: rotate(0deg) scale(1); }\n  50% { transform: rotate(180deg) scale(1.1); }\n}\n\n/* Responsive Design */\n@media (max-width: 768px) {\n  .coin-flip-animation {\n    padding: 2rem 1rem;\n    min-height: 400px;\n  }\n  \n  .animation-container {\n    width: 250px;\n    height: 250px;\n    margin-bottom: 1.5rem;\n  }\n  \n  .coin-3d-flip {\n    width: 120px;\n    height: 120px;\n  }\n  \n  .coin-symbol {\n    font-size: 2.5rem;\n  }\n  \n  .coin-text {\n    font-size: 0.7rem;\n  }\n  \n  .status-text {\n    font-size: 1.1rem;\n  }\n  \n  .result-card {\n    padding: 1.5rem;\n  }\n  \n  .result-icon {\n    font-size: 2.5rem;\n  }\n  \n  .result-value {\n    font-size: 1.5rem;\n  }\n  \n  .start-flip-btn {\n    font-size: 1rem;\n    padding: 0.8rem 1.5rem;\n  }\n}\n\n@media (max-width: 480px) {\n  .coin-flip-animation {\n    padding: 1.5rem 0.5rem;\n    border-radius: 12px;\n  }\n  \n  .animation-container {\n    width: 200px;\n    height: 200px;\n  }\n  \n  .coin-3d-flip {\n    width: 100px;\n    height: 100px;\n  }\n  \n  .coin-symbol {\n    font-size: 2rem;\n  }\n  \n  .progress-container {\n    width: 150px;\n  }\n}\n\n/* Accessibility */\n@media (prefers-reduced-motion: reduce) {\n  .coin-3d-flip,\n  .coin-border-ring,\n  .particle,\n  .coin-shadow,\n  .result-icon,\n  .progress-bar {\n    animation: none;\n    transition: none;\n  }\n  \n  .coin-flip-animation::before {\n    animation: none;\n  }\n}\n\n/* High Contrast Mode */\n@media (prefers-contrast: high) {\n  .coin-face-flip {\n    border-width: 6px;\n  }\n  \n  .coin-border-ring {\n    border-width: 4px;\n    border-style: solid;\n  }\n  \n  .result-card {\n    border-width: 2px;\n    border-color: #000;\n  }\n  \n  .start-flip-btn {\n    border: 2px solid #000;\n  }\n}\n\n/* Dark Mode Support */\n@media (prefers-color-scheme: dark) {\n  .result-card {\n    background: rgba(31, 41, 55, 0.95);\n    border-color: rgba(75, 85, 99, 0.3);\n  }\n  \n  .result-label {\n    color: #9ca3af;\n  }\n  \n  .coin-text {\n    color: #6b7280;\n  }\n}\n\n/* Performance Optimizations */\n.coin-3d-flip,\n.coin-face-flip,\n.flip-particles,\n.particle {\n  will-change: transform;\n  transform-origin: center center;\n}\n\n.coin-flip-animation {\n  contain: layout style paint;\n}\n\n/* GPU Acceleration */\n.animation-container,\n.coin-3d-flip,\n.coin-face-flip {\n  transform: translateZ(0);\n  -webkit-backface-visibility: hidden;\n  backface-visibility: hidden;\n}
+/* =================
+   Coin Flip Animation Styles
+   ================= */
+
+.coin-flip-animation {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  min-height: 500px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  position: relative;
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Animation Container */
+.animation-container {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1000px;
+  margin-bottom: 2rem;
+}
+
+/* 3D Coin */
+.coin-3d-flip {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  transform-style: preserve-3d;
+  transition: none; /* Controlled by animation */
+}
+
+/* Coin Faces */
+.coin-face-flip {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backface-visibility: hidden;
+  box-shadow:
+    0 0 30px rgba(255, 255, 255, 0.3),
+    inset 0 0 30px rgba(0, 0, 0, 0.1);
+}
+
+.coin-face-flip.coin-heads {
+  background:
+    radial-gradient(circle at 30% 30%, #ffd700, #ffed4a, #f59e0b);
+  border: 4px solid #d97706;
+  transform: rotateX(0deg);
+}
+
+.coin-face-flip.coin-tails {
+  background:
+    radial-gradient(circle at 30% 30%, #e5e7eb, #f3f4f6, #d1d5db);
+  border: 4px solid #6b7280;
+  transform: rotateX(180deg);
+}
+
+/* Coin Content */
+.coin-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.coin-border-ring {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  border: 3px dashed rgba(0, 0, 0, 0.2);
+  border-radius: 50%;
+  animation: rotate-ring 20s linear infinite;
+}
+
+.coin-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  z-index: 2;
+}
+
+.coin-symbol {
+  font-size: 3.5rem;
+  font-weight: 900;
+  color: #1f2937;
+  text-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    0 0 10px rgba(255, 255, 255, 0.5);
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
+}
+
+.coin-text {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #4b5563;
+  letter-spacing: 0.1em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Particle Effects */
+.flip-particles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200px;
+  height: 200px;
+  margin: -100px 0 0 -100px;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  background: radial-gradient(circle, #fbbf24, #f59e0b);
+  border-radius: 50%;
+  animation: particle-burst 0.8s ease-out forwards;
+  box-shadow: 0 0 6px #fbbf24;
+}
+
+/* Ground Shadow */
+.coin-shadow {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 20px;
+  background: radial-gradient(
+    ellipse,
+    rgba(0, 0, 0, 0.4) 0%,
+    rgba(0, 0, 0, 0.2) 50%,
+    transparent 100%
+  );
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.coin-shadow.shadow-impact {
+  animation: shadow-impact 0.3s ease-out;
+}
+
+/* Status Display */
+.animation-status {
+  text-align: center;
+  color: white;
+  margin-bottom: 2rem;
+}
+
+.status-text {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  min-height: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Progress Bar */
+.progress-container {
+  width: 200px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  border-radius: 3px;
+  transition: width 0.1s ease;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+/* Result Display */
+.result-display {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.result-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.result-icon {
+  font-size: 3rem;
+  animation: icon-bounce 0.6s ease-out;
+}
+
+.result-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.result-label {
+  font-size: 1rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.result-value {
+  font-size: 2rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.result-value.heads {
+  color: #f59e0b;
+  text-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+}
+
+.result-value.tails {
+  color: #6b7280;
+  text-shadow: 0 2px 4px rgba(107, 114, 128, 0.3);
+}
+
+/* Start Button */
+.start-flip-btn {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 1.2rem;
+  font-weight: 600;
+  padding: 1rem 2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  margin-top: 1rem;
+}
+
+.start-flip-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+}
+
+.start-flip-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.start-flip-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+/* Animations */
+@keyframes rotate-ring {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes particle-burst {
+  0% {
+    opacity: 1;
+    transform: translate(-2px, -2px) scale(0.5);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translate(-2px, -2px) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-40px, -40px) scale(0.2);
+  }
+}
+
+@keyframes shadow-impact {
+  0% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.3); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+@keyframes icon-bounce {
+  0% { transform: scale(0) rotate(-180deg); }
+  50% { transform: scale(1.2) rotate(-90deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes animate-result-in {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-result-in {
+  animation: animate-result-in 0.5s ease-out;
+}
+
+/* Background Effects */
+.coin-flip-animation::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.1), transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.05), transparent 50%);
+  animation: bg-float 10s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes bg-float {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.1); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .coin-flip-animation {
+    padding: 2rem 1rem;
+    min-height: 400px;
+  }
+
+  .animation-container {
+    width: 250px;
+    height: 250px;
+    margin-bottom: 1.5rem;
+  }
+
+  .coin-3d-flip {
+    width: 120px;
+    height: 120px;
+  }
+
+  .coin-symbol {
+    font-size: 2.5rem;
+  }
+
+  .coin-text {
+    font-size: 0.7rem;
+  }
+
+  .status-text {
+    font-size: 1.1rem;
+  }
+
+  .result-card {
+    padding: 1.5rem;
+  }
+
+  .result-icon {
+    font-size: 2.5rem;
+  }
+
+  .result-value {
+    font-size: 1.5rem;
+  }
+
+  .start-flip-btn {
+    font-size: 1rem;
+    padding: 0.8rem 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .coin-flip-animation {
+    padding: 1.5rem 0.5rem;
+    border-radius: 12px;
+  }
+
+  .animation-container {
+    width: 200px;
+    height: 200px;
+  }
+
+  .coin-3d-flip {
+    width: 100px;
+    height: 100px;
+  }
+
+  .coin-symbol {
+    font-size: 2rem;
+  }
+
+  .progress-container {
+    width: 150px;
+  }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .coin-3d-flip,
+  .coin-border-ring,
+  .particle,
+  .coin-shadow,
+  .result-icon,
+  .progress-bar {
+    animation: none;
+    transition: none;
+  }
+
+  .coin-flip-animation::before {
+    animation: none;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .coin-face-flip {
+    border-width: 6px;
+  }
+
+  .coin-border-ring {
+    border-width: 4px;
+    border-style: solid;
+  }
+
+  .result-card {
+    border-width: 2px;
+    border-color: #000;
+  }
+
+  .start-flip-btn {
+    border: 2px solid #000;
+  }
+}
+
+/* Performance Optimizations */
+.coin-3d-flip,
+.coin-face-flip,
+.flip-particles,
+.particle {
+  will-change: transform;
+  transform-origin: center center;
+}
+
+.coin-flip-animation {
+  contain: layout style paint;
+}
+
+/* GPU Acceleration */
+.animation-container,
+.coin-3d-flip,
+.coin-face-flip {
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}

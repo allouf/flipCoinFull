@@ -1,6 +1,9 @@
 // Component exports for cleaner imports
-export { CoinFlip } from './CoinFlip';
+// OLD: export { CoinFlip } from './CoinFlip'; // Renamed to CoinFlip_old.tsx
 export { WalletConnection } from './WalletConnection';
+
+// NEW unified system components
+export { GameInterface } from './GameInterface';
 
 // VRF components
 export { VRFStatusIndicator } from './VRFStatusIndicator';

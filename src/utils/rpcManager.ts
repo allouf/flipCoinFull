@@ -44,10 +44,15 @@ export class RpcManager {
 
   private isProcessing = false;
 
+  private queueTimeout: NodeJS.Timeout | null = null; // MEMORY LEAK FIX: Track timeout
+
   // Circuit breaker configuration
   private readonly FAILURE_THRESHOLD = 3;
 
   private readonly RESET_TIMEOUT = 30000; // 30 seconds
+
+  // MEMORY OPTIMIZATION: Cache size limits
+  private readonly MAX_CACHE_SIZE = 1000; // Maximum cache entries
 
   private readonly HALF_OPEN_MAX_CALLS = 1;
 
@@ -181,9 +186,18 @@ export class RpcManager {
       this.executeRequest(request);
     }
 
+    // MEMORY LEAK FIX: Clear existing timeout before setting new one
+    if (this.queueTimeout) {
+      clearTimeout(this.queueTimeout);
+      this.queueTimeout = null;
+    }
+
     // If queue is not empty, wait and process more
     if (this.requestQueue.length > 0) {
-      setTimeout(() => this.processQueue(), this.REQUEST_DELAY);
+      this.queueTimeout = setTimeout(() => {
+        this.queueTimeout = null;
+        this.processQueue();
+      }, this.REQUEST_DELAY);
     } else {
       this.isProcessing = false;
     }
@@ -223,8 +237,8 @@ export class RpcManager {
       // Success - reset circuit breaker
       this.onSuccess();
 
-      // Cache the result
-      this.cache.set(key, {
+      // Cache the result with size enforcement
+      this.setCacheWithSizeLimit(key, {
         data: result,
         timestamp: Date.now(),
         ttl,
@@ -303,6 +317,46 @@ export class RpcManager {
   clearCache(): void {
     this.cache.clear();
     console.log('🗑️ Cache cleared');
+  }
+
+  /**
+   * MEMORY OPTIMIZATION: Set cache entry with size limit enforcement
+   */
+  private setCacheWithSizeLimit(key: string, entry: CacheEntry): void {
+    // If cache is at capacity, remove oldest entries
+    if (this.cache.size >= this.MAX_CACHE_SIZE) {
+      const entriesToRemove = this.cache.size - this.MAX_CACHE_SIZE + 1;
+      const sortedEntries = Array.from(this.cache.entries())
+        .sort(([,a], [,b]) => a.timestamp - b.timestamp); // Sort by oldest first
+
+      for (let i = 0; i < entriesToRemove; i++) {
+        this.cache.delete(sortedEntries[i][0]);
+      }
+
+      console.log(`🗑️ Removed ${entriesToRemove} oldest cache entries to maintain size limit`);
+    }
+
+    this.cache.set(key, entry);
+  }
+
+  /**
+   * MEMORY LEAK FIX: Cleanup method to clear all timers and state
+   */
+  cleanup(): void {
+    // Clear queue timeout
+    if (this.queueTimeout) {
+      clearTimeout(this.queueTimeout);
+      this.queueTimeout = null;
+    }
+
+    // Clear all cache and pending requests
+    this.cache.clear();
+    this.pendingRequests.clear();
+    this.requestQueue = [];
+    this.isProcessing = false;
+    this.activeRequests = 0;
+
+    console.log('🧹 RPC Manager cleanup completed');
   }
 
   /**

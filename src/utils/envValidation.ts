@@ -367,8 +367,8 @@ function parseEnvironmentConfig(): EnvironmentConfig {
     minBetSol: parseFloat(process.env.REACT_APP_MIN_BET_SOL || '0.01'),
 
     // Backend Configuration
-    apiBaseUrl: process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001',
-    websocketUrl: process.env.REACT_APP_WEBSOCKET_URL || 'ws://localhost:3001',
+    apiBaseUrl: process.env.REACT_APP_API_BASE_URL || 'http://localhost:4000',
+    websocketUrl: process.env.REACT_APP_WEBSOCKET_URL || 'http://localhost:4000',
     apiKey: process.env.REACT_APP_API_KEY,
 
     // VRF Configuration

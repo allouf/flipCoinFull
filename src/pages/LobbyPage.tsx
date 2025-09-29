@@ -1,249 +1,213 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletConnectButton } from '../components/WalletConnectButton';
-import { NetworkSelector } from '../components/NetworkSelector';
-import EnhancedGameLobby from '../components/EnhancedGameLobby';
-import { CoinFlip } from '../components/CoinFlip';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useFairCoinFlipper } from '../hooks/useFairCoinFlipper';
+import { useLobbyData } from '../hooks/useLobbyData';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { AvailableGames } from '../components/lobby/AvailableGames';
+import { RunningGames } from '../components/lobby/RunningGames';
+import { MyGames } from '../components/lobby/MyGames';
+import { GameHistory } from '../components/lobby/GameHistory';
+import { CreateGameModal } from '../components/game/CreateGameModal';
+import { Plus, RefreshCw, Users, Clock, Trophy, History } from 'lucide-react';
 
-// CreateGameForm component
-interface CreateGameFormProps {
-  onCreateGame: (betAmount: number) => Promise<void>;
-}
+type LobbyTab = 'available' | 'running' | 'my-games' | 'history';
 
-const CreateGameForm: React.FC<CreateGameFormProps> = ({ onCreateGame }) => {
-  const [betAmount, setBetAmount] = useState('0.01');
-  const [isCreating, setIsCreating] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const amount = parseFloat(betAmount);
-    if (isNaN(amount) || amount <= 0) {
-      alert('Please enter a valid bet amount');
-      return;
-    }
-    
-    if (amount < 0.01) {
-      alert('Minimum bet amount is 0.01 SOL');
-      return;
-    }
-    
-    if (amount > 10) {
-      alert('Maximum bet amount is 10 SOL');
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      await onCreateGame(amount);
-    } catch (error) {
-      console.error('Failed to create game:', error);
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handlePresetClick = (amount: number) => {
-    setBetAmount(amount.toString());
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="form-control w-full">
-        <label className="label">
-          <span className="label-text font-semibold">Bet Amount (SOL)</span>
-          <span className="label-text-alt text-xs">Min: 0.01 SOL • Max: 10 SOL</span>
-        </label>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min="0.01"
-            max="10"
-            step="0.01"
-            value={betAmount}
-            onChange={(e) => setBetAmount(e.target.value)}
-            className="input input-bordered input-lg flex-1 text-center font-mono"
-            placeholder="0.01"
-            disabled={isCreating}
-          />
-          <div className="text-lg font-semibold px-2">SOL</div>
-        </div>
-      </div>
-
-      {/* Quick preset buttons */}
-      <div className="flex flex-wrap gap-2 justify-center">
-        <span className="text-sm text-base-content/60 w-full text-center mb-2">Quick presets:</span>
-        {[0.01, 0.1, 0.5, 1.0].map(amount => (
-          <button
-            key={amount}
-            type="button"
-            onClick={() => handlePresetClick(amount)}
-            className={`btn btn-sm ${
-              parseFloat(betAmount) === amount 
-                ? 'btn-primary' 
-                : 'btn-outline btn-neutral'
-            }`}
-            disabled={isCreating}
-          >
-            {amount} SOL
-          </button>
-        ))}
-      </div>
-
-      <div className="text-center">
-        <button
-          type="submit"
-          disabled={isCreating}
-          className="btn btn-primary btn-lg px-8"
-        >
-          {isCreating ? (
-            <>
-              <span className="loading loading-spinner loading-sm"></span>
-              Creating Game...
-            </>
-          ) : (
-            <>
-              🎮 Create Game ({betAmount} SOL)
-            </>
-          )}
-        </button>
-      </div>
-      
-      <div className="text-center text-sm text-base-content/60">
-        <p>🔒 Your bet will be held in escrow until the game is completed</p>
-        <p>⚡ House fee: 7% of total pot</p>
-      </div>
-    </form>
-  );
-};
-
+/**
+ * LobbyPage - Game lobby dashboard with proper game listings
+ *
+ * Shows available games, running games, user's games, and history
+ * Uses the NEW unified system but with proper lobby structure
+ */
 export const LobbyPage: React.FC = () => {
-  const navigate = useNavigate();
   const { connected } = useWallet();
-  const { gameState, createGame } = useFairCoinFlipper();
+  const fairCoinFlipperResult = useFairCoinFlipper();
+  const [activeTab, setActiveTab] = useState<LobbyTab>('available');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Demo coin flip state
-  const [isFlipping, setIsFlipping] = useState(false);
-  const [flipResult, setFlipResult] = useState<'heads' | 'tails' | null>(null);
+  // Initialize WebSocket connection for real-time updates
+  useWebSocket();
 
-  const handleDemoFlip = () => {
-    setIsFlipping(true);
-    setFlipResult(null);
-    // Simulate coin flip
-    setTimeout(() => {
-      const result = Math.random() > 0.5 ? 'heads' : 'tails';
-      setFlipResult(result);
-      setIsFlipping(false);
-    }, 2000);
-  };
+  // Get real lobby data
+  const {
+    availableGames,
+    runningGames,
+    myGames,
+    gameHistory,
+    stats,
+    loading,
+    error,
+    refreshData
+  } = useLobbyData();
 
-  const handleResetFlip = () => {
-    setFlipResult(null);
-    setIsFlipping(false);
-  };
-
-  const handleCreateGame = async (betAmount: number) => {
-    if (!connected) {
-      alert('Please connect your wallet first');
-      return;
-    }
-
-    try {
-      // Create game without requiring selection upfront
-      const success = await createGame(betAmount);
-      if (success && gameState.gameId) {
-        console.log('Game created successfully, navigating to game room');
-        // Navigate to the newly created game room
-        navigate(`/game/${gameState.gameId}`);
-      }
-    } catch (error) {
-      console.error('Failed to create game:', error);
-      alert('Failed to create game: ' + (error as Error).message);
-    }
-  };
-
-  const handleJoinGame = (gamePda: string, gameId: number) => {
-    console.log('Joining game:', gameId);
-    // Navigate to the game room with gamePda parameter to avoid redundant searches
-    navigate(`/game/${gameId}?pda=${gamePda}`);
-  };
-
-  const handleRejoinGame = (gamePda: string, gameId: number) => {
-    console.log('Rejoining own game:', gameId, 'at', gamePda);
-    // Navigate to the game room with gamePda parameter to avoid redundant searches
-    navigate(`/game/${gameId}?pda=${gamePda}`);
-  };
-
-  return (
-    <div>
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="text-center mb-12">
-          <h2 className="text-5xl font-bold mb-4 text-white">
-            Flip, Bet, Win
+  if (!connected) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="max-w-md mx-auto p-8 glass-card text-center">
+          <h2 className="text-2xl font-bold mb-6">
+            Connect Your Wallet
           </h2>
-          <p className="text-xl text-white/70 max-w-2xl mx-auto">
-            The ultimate 1v1 coin flipping game on Solana blockchain.
-            Browse active games, join any room, or create your own. Let the blockchain decide your fate.
+          <p className="text-base-content/70 mb-6">
+            Connect your wallet to access the game lobby and start playing
           </p>
-        </div>
-
-        {/* Enhanced Game Lobby - Browse Active Games  */}
-        <div className="mb-12">
-          <EnhancedGameLobby
-            onJoinGame={handleJoinGame}
-            onRejoinGame={handleRejoinGame}
-            onCreateGameClick={() => {
-              const createGameSection = document.getElementById('create-game-section');
-              if (createGameSection) {
-                createGameSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }
-            }}
-          />
-        </div>
-
-        {/* Create New Game Section */}
-        <div className="mb-12" id="create-game-section">
-          <div className="glass-card p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold">Create New Game</h3>
-              <div className="badge badge-primary">Custom Bet</div>
-            </div>
-            
-            {!connected ? (
-              <div className="text-center py-8">
-                <h4 className="text-xl font-semibold mb-4">Connect Your Wallet</h4>
-                <p className="text-base-content/70 mb-6">
-                  Connect your Solana wallet to create and join games
-                </p>
-                <WalletConnectButton />
-              </div>
-            ) : (
-              <CreateGameForm onCreateGame={handleCreateGame} />
-            )}
+          <div className="flex justify-center">
+            <WalletMultiButton className="!btn !btn-primary !btn-lg" />
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Coin Animation Demo */}
-        <div className="glass-card p-8 text-center mb-8">
-          <h3 className="text-2xl font-bold mb-6">Demo Mode (No Blockchain)</h3>
-          <CoinFlip
-            isFlipping={isFlipping}
-            result={flipResult}
-            onFlip={handleDemoFlip}
-            onReset={handleResetFlip}
-          />
+  if (!fairCoinFlipperResult) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center p-8">
+          <div className="loading loading-spinner loading-lg mb-4"></div>
+          <h3 className="text-xl font-semibold">Initializing Game System...</h3>
+          <p className="text-gray-600 mt-2">Connecting to blockchain...</p>
         </div>
+      </div>
+    );
+  }
 
-        {/* Info Section */}
-        <div className="text-center">
-          <p className="text-sm text-base-content/60 mb-4">
-            Built on Solana blockchain • House fee: 7% • Fair & Transparent
-          </p>
+  const { gameState } = fairCoinFlipperResult;
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshData();
+      console.log('🔄 Lobby data refreshed');
+    } catch (error) {
+      console.error('❌ Failed to refresh:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleGameCreated = () => {
+    // Refresh data to show new game
+    refreshData();
+  };
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'available':
+        return <AvailableGames availableGames={availableGames} stats={stats} loading={loading} />;
+      case 'running':
+        return <RunningGames runningGames={runningGames} loading={loading} />;
+      case 'my-games':
+        return <MyGames myGames={myGames} loading={loading} />;
+      case 'history':
+        return <GameHistory gameHistory={gameHistory} loading={loading} />;
+      default:
+        return <AvailableGames availableGames={availableGames} stats={stats} loading={loading} />;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-base-100 to-base-200">
+      {/* Header */}
+      <header className="navbar bg-base-300/50 backdrop-blur-sm border-b border-base-300/20">
+        <div className="navbar-start">
+          <h1 className="text-xl font-bold">🎯 Game Lobby</h1>
+        </div>
+        <div className="navbar-end gap-4">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="btn btn-primary"
+          >
+            <Plus size={16} />
+            Create Game
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="btn btn-ghost"
+          >
+            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+
+          {/* Active Game Notice */}
+          {gameState.phase !== 'idle' && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h3 className="font-semibold text-blue-800">🎮 Active Game</h3>
+              <p className="text-blue-700 text-sm">
+                You have an active game #{gameState.gameId} - Click to continue playing
+              </p>
+              <button
+                onClick={() => window.location.href = `/game/${gameState.gameId}`}
+                className="mt-2 btn btn-sm btn-primary"
+              >
+                Continue Game
+              </button>
+            </div>
+          )}
+
+          {/* Tabs */}
+          <div className="tabs tabs-boxed mb-6">
+            <a
+              className={`tab ${activeTab === 'available' ? 'tab-active' : ''}`}
+              onClick={() => setActiveTab('available')}
+            >
+              <Users size={16} className="mr-2" />
+              Available Games
+              {availableGames && availableGames.length > 0 && (
+                <span className="badge badge-primary badge-sm ml-2">{availableGames.length}</span>
+              )}
+            </a>
+            <a
+              className={`tab ${activeTab === 'running' ? 'tab-active' : ''}`}
+              onClick={() => setActiveTab('running')}
+            >
+              <Clock size={16} className="mr-2" />
+              Running Games
+              {runningGames && runningGames.length > 0 && (
+                <span className="badge badge-secondary badge-sm ml-2">{runningGames.length}</span>
+              )}
+            </a>
+            <a
+              className={`tab ${activeTab === 'my-games' ? 'tab-active' : ''}`}
+              onClick={() => setActiveTab('my-games')}
+            >
+              <Trophy size={16} className="mr-2" />
+              My Games
+              {myGames && myGames.length > 0 && (
+                <span className="badge badge-accent badge-sm ml-2">{myGames.length}</span>
+              )}
+            </a>
+            <a
+              className={`tab ${activeTab === 'history' ? 'tab-active' : ''}`}
+              onClick={() => setActiveTab('history')}
+            >
+              <History size={16} className="mr-2" />
+              History
+              {gameHistory && gameHistory.length > 0 && (
+                <span className="badge badge-neutral badge-sm ml-2">{gameHistory.length}</span>
+              )}
+            </a>
+          </div>
+
+          {/* Tab Content */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            {renderTabContent()}
+          </div>
         </div>
       </main>
+
+      {/* Create Game Modal */}
+      {showCreateModal && (
+        <CreateGameModal
+          onClose={() => setShowCreateModal(false)}
+          onGameCreated={handleGameCreated}
+        />
+      )}
     </div>
   );
 };

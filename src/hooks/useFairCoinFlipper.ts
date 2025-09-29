@@ -3,23 +3,20 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { Program, AnchorProvider, BN, Idl } from '@coral-xyz/anchor';
 import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { sha256 } from 'js-sha256';
-// Import IDL - fallback if direct import doesn't work
+import { PROGRAM_ID, HOUSE_WALLET } from '../config/constants';
+// Import IDL - use the existing coin_flipper.json
 let fairCoinFlipperIdl: any;
 try {
-  fairCoinFlipperIdl = require('../idl/fair_coin_flipper.json');
+  fairCoinFlipperIdl = require('../idl/coin_flipper.json');
 } catch {
   // Fallback IDL structure
   fairCoinFlipperIdl = {
     version: "0.1.0",
-    name: "fair_coin_flipper",
+    name: "coin_flipper",
     instructions: [],
     accounts: []
   };
 }
-
-// Program configuration
-const PROGRAM_ID = new PublicKey('7CCbhfJx5fUPXZGRu9bqvztBiQHpYPaNL1rGFy9hrcf6');
-const HOUSE_WALLET = new PublicKey('HouseWalletPublicKeyHere123456789012345678901234');
 
 // Use program ID and house wallet from config
 const TIMEOUT_SECONDS = 300; // 5 minutes
@@ -45,6 +42,9 @@ export interface FairGameState {
   // Opponent data
   opponentRevealed: boolean;
   opponentChoice: CoinSide | null;
+
+  // Player reveal status
+  isPlayerRevealed: boolean;
   
   // Game results
   coinResult: CoinSide | null;
@@ -85,6 +85,7 @@ const initialGameState: FairGameState = {
   playerCommitment: null,
   opponentRevealed: false,
   opponentChoice: null,
+  isPlayerRevealed: false,
   coinResult: null,
   winner: null,
   winnerPayout: null,
@@ -106,7 +107,7 @@ export const useFairCoinFlipper = () => {
   const [gameState, setGameState] = useState<FairGameState>(initialGameState);
   const [notifications, setNotifications] = useState<FairGameNotification[]>([]);
   const [program, setProgram] = useState<Program | null>(null);
-  
+
   // Refs for cleanup and state management
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const timeoutIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -488,7 +489,7 @@ export const useFairCoinFlipper = () => {
     }, 2000); // Poll every 2 seconds
   }, [program, findGamePDA]);
 
-  // Join existing game with choice (matches smart contract flow)
+// Join existing game with choice (matches smart contract flow)
   const joinExistingGame = useCallback(async (gameId: number) => {
     if (!program || !wallet.publicKey) {
       setError('Wallet not connected');
@@ -541,7 +542,7 @@ export const useFairCoinFlipper = () => {
   // Cancel stuck game (after 1 hour timeout)
   const cancelGame = useCallback(async (gameId?: number) => {
     const targetGameId = gameId || gameState.gameId;
-    if (!program || !wallet.publicKey || !targetGameId) {
+    if (!gameState || !wallet.publicKey || !targetGameId || !program) {
       setError('Invalid state for game cancellation');
       return false;
     }
@@ -565,7 +566,7 @@ export const useFairCoinFlipper = () => {
         gamePda: gamePda.toString(),
       });
 
-      const tx = await program.methods
+      const tx = await program!.methods
         .cancelGame()
         .accounts({
           canceller: wallet.publicKey,
@@ -606,6 +607,8 @@ export const useFairCoinFlipper = () => {
       console.error('Error cancelling game:', error);
       setError(error.message || 'Failed to cancel game');
       return false;
+    } finally {
+      setLoading(false);
     }
   }, [program, wallet.publicKey, gameState.gameId, findGamePDA, deriveEscrowPDA, addNotification, setError, setLoading]);
 
@@ -620,13 +623,14 @@ export const useFairCoinFlipper = () => {
     setLoading(true);
     setError(null);
 
+
     try {
       const gamePda = await findGamePDA(targetGameId);
       if (!gamePda) {
         throw new Error('Game not found');
       }
 
-      const gameAccount = await program.account.game.fetch(gamePda);
+      const gameAccount = await program!.account.game.fetch(gamePda);
       const playerA = (gameAccount as any).playerA;
       const playerB = (gameAccount as any).playerB;
       const [escrowPda] = deriveEscrowPDA(playerA, targetGameId);
@@ -636,7 +640,7 @@ export const useFairCoinFlipper = () => {
         gamePda: gamePda.toString(),
       });
 
-      await program.methods
+      await program!.methods
         .resolveGameManual()
         .accounts({
           resolver: wallet.publicKey,
@@ -665,6 +669,8 @@ export const useFairCoinFlipper = () => {
       console.error('Error manually resolving game:', error);
       setError(error.message || 'Failed to manually resolve game');
       return false;
+    } finally {
+      setLoading(false);
     }
   }, [program, wallet.publicKey, gameState.gameId, findGamePDA, deriveEscrowPDA, addNotification, setError, setLoading]);
 
@@ -711,7 +717,7 @@ export const useFairCoinFlipper = () => {
       const gamePda = new PublicKey(gamePdaString);
       console.log(`🎮 Loading game ${gameId} directly via PDA: ${gamePdaString}`);
 
-      const gameAccount = await program.account.game.fetch(gamePda);
+      const gameAccount = await program!.account.game.fetch(gamePda);
       const playerA = (gameAccount as any).playerA;
       const playerB = (gameAccount as any).playerB;
       const betAmount = (gameAccount as any).betAmount.toNumber() / LAMPORTS_PER_SOL;
@@ -1057,6 +1063,7 @@ export const useFairCoinFlipper = () => {
       setGameState(prev => ({
         ...prev,
         txSignature: tx,
+        isPlayerRevealed: true,
       }));
 
       addNotification({

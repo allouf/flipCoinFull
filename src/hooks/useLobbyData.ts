@@ -52,14 +52,15 @@ export interface LobbyStats {
 const mapRoomStatusToString = (status: GameRoom['status']): string => {
   if (!status) return 'unknown';
   if ('waitingForPlayer' in status) return 'waiting';
-  if ('selectionsPending' in status) return 'active';
-  if ('resolving' in status) return 'active';
-  if ('completed' in status) return 'completed';
+  if ('playersReady' in status) return 'active';
+  if ('commitmentsReady' in status) return 'active';
+  if ('revealingPhase' in status) return 'active';
+  if ('resolved' in status) return 'completed';
   if ('cancelled' in status) return 'cancelled';
   return 'unknown';
 };
 
-const getSelectionString = (selection: GameRoom['player1Selection'] | GameRoom['player2Selection']): string => {
+const getSelectionString = (selection: GameRoom['choiceA'] | GameRoom['choiceB']): string => {
   if (!selection) return '';
   if ('heads' in selection) return 'heads';
   if ('tails' in selection) return 'tails';
@@ -77,13 +78,19 @@ export const useLobbyData = () => {
 
   // Fetch all game rooms
   const refreshData = useCallback(async (userInitiated = false) => {
-    if (!isProgramReady) return;
+    console.log('🔍 useLobbyData: refreshData called', { isProgramReady, userInitiated });
+    if (!isProgramReady) {
+      console.log('⚠️ useLobbyData: Program not ready, skipping fetch');
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
+      console.log('📡 useLobbyData: Fetching rooms from blockchain...');
       const rooms = await fetchAllGameRooms({ userInitiated, priority: userInitiated ? 'high' : 'normal' });
+      console.log('✅ useLobbyData: Fetched rooms:', rooms?.length || 0, rooms);
       setAllRooms(rooms);
       setLastRefresh(new Date());
 
@@ -93,7 +100,7 @@ export const useLobbyData = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load game data';
       setError(errorMessage);
-      console.error('Error refreshing lobby data:', err);
+      console.error('❌ useLobbyData: Error refreshing lobby data:', err);
     } finally {
       setLoading(false);
     }
@@ -101,8 +108,12 @@ export const useLobbyData = () => {
 
   // Auto-refresh on component mount and program ready
   useEffect(() => {
+    console.log('🚀 useLobbyData: useEffect triggered', { isProgramReady });
     if (isProgramReady) {
+      console.log('🎯 useLobbyData: Program ready, starting initial fetch');
       refreshData(false);
+    } else {
+      console.log('⏳ useLobbyData: Waiting for program to be ready...');
     }
   }, [isProgramReady, refreshData]);
 
@@ -122,11 +133,11 @@ export const useLobbyData = () => {
     return allRooms
       .filter(room =>
         room.status && 'waitingForPlayer' in room.status &&
-        (!publicKey || room.player1.toString() !== publicKey.toString()) // Don't show user's own games
+        (!publicKey || room.playerA.toString() !== publicKey.toString()) // Don't show user's own games
       )
       .map(room => ({
-        id: room.roomId.toNumber().toString(),
-        creatorId: room.player1.toString(),
+        id: room.gameId.toNumber().toString(),
+        creatorId: room.playerA.toString(),
         betAmount: room.betAmount.toNumber() / 1e9, // Convert lamports to SOL
         createdAt: new Date(room.createdAt.toNumber() * 1000).toISOString(),
       }));
@@ -139,12 +150,12 @@ export const useLobbyData = () => {
 
     return allRooms
       .filter(room => {
-        const isPlayer1 = room.player1.toString() === userPublicKey;
-        const isPlayer2 = room.player2?.toString() === userPublicKey;
+        const isPlayer1 = room.playerA.toString() === userPublicKey;
+        const isPlayer2 = room.playerB?.toString() === userPublicKey;
         return isPlayer1 || isPlayer2;
       })
       .map(room => {
-        const isCreator = room.player1.toString() === userPublicKey;
+        const isCreator = room.playerA.toString() === userPublicKey;
         const status = mapRoomStatusToString(room.status);
 
         let winner: string | undefined;
@@ -156,15 +167,15 @@ export const useLobbyData = () => {
         }
 
         if (status === 'active') {
-          if (room.status && 'selectionsPending' in room.status) {
+          if (room.status && 'playersReady' in room.status) {
             phase = 'selection';
-          } else if (room.status && 'resolving' in room.status) {
+          } else if (room.status && 'revealingPhase' in room.status) {
             phase = 'revealing';
           }
         }
 
         return {
-          id: room.roomId.toNumber().toString(),
+          id: room.gameId.toNumber().toString(),
           status: status as 'waiting' | 'active' | 'completed' | 'cancelled',
           role: isCreator ? 'creator' as const : 'joiner' as const,
           createdAt: new Date(room.createdAt.toNumber() * 1000).toISOString(),
@@ -180,21 +191,21 @@ export const useLobbyData = () => {
     return allRooms
       .filter(room =>
         room.status && (
-          'selectionsPending' in room.status ||
-          'resolving' in room.status
+          'playersReady' in room.status ||
+          'revealingPhase' in room.status
         ) &&
-        room.player2 // Must have both players
+        room.playerB // Must have both players
       )
       .map(room => {
         let phase = 'making selections';
-        if (room.status && 'resolving' in room.status) {
+        if (room.status && 'revealingPhase' in room.status) {
           phase = 'revealing choices';
         }
 
         return {
-          id: room.roomId.toNumber().toString(),
-          player1: room.player1.toString(),
-          player2: room.player2!.toString(),
+          id: room.gameId.toNumber().toString(),
+          player1: room.playerA.toString(),
+          player2: room.playerB!.toString(),
           totalPot: (room.betAmount.toNumber() * 2) / 1e9, // Both players' bets in SOL
           status: mapRoomStatusToString(room.status),
           phase,
@@ -209,13 +220,13 @@ export const useLobbyData = () => {
 
     return allRooms
       .filter(room => {
-        const isPlayer1 = room.player1.toString() === userPublicKey;
-        const isPlayer2 = room.player2?.toString() === userPublicKey;
-        const isCompleted = room.status && 'completed' in room.status;
+        const isPlayer1 = room.playerA.toString() === userPublicKey;
+        const isPlayer2 = room.playerB?.toString() === userPublicKey;
+        const isCompleted = room.status && 'resolved' in room.status;
         return (isPlayer1 || isPlayer2) && isCompleted;
       })
       .map(room => {
-        const isPlayer1 = room.player1.toString() === userPublicKey;
+        const isPlayer1 = room.playerA.toString() === userPublicKey;
         const isWinner = room.winner?.toString() === userPublicKey;
         const result: 'win' | 'loss' = isWinner ? 'win' : 'loss';
 
@@ -228,8 +239,8 @@ export const useLobbyData = () => {
           : getSelectionString(room.player1Selection);
 
         const opponentId = isPlayer1
-          ? room.player2?.toString() || ''
-          : room.player1.toString();
+          ? room.playerB?.toString() || ''
+          : room.playerA.toString();
 
         const betAmount = room.betAmount.toNumber() / 1e9;
         const netAmount = result === 'win' ? betAmount * 0.86 : -betAmount; // 7% house fee for wins
@@ -238,7 +249,7 @@ export const useLobbyData = () => {
         const coinResult = isWinner ? yourChoice : (yourChoice === 'heads' ? 'tails' : 'heads');
 
         return {
-          id: room.roomId.toNumber().toString(),
+          id: room.gameId.toNumber().toString(),
           betAmount,
           result,
           opponentId: opponentId.slice(-8), // Show last 8 chars
@@ -256,15 +267,15 @@ export const useLobbyData = () => {
     const totalGames = allRooms.length;
     const activeGames = allRooms.filter(room =>
       room.status && (
-        'selectionsPending' in room.status ||
-        'resolving' in room.status
+        'playersReady' in room.status ||
+        'revealingPhase' in room.status
       )
     ).length;
     const waitingGames = allRooms.filter(room =>
       room.status && 'waitingForPlayer' in room.status
     ).length;
     const completedGames = allRooms.filter(room =>
-      room.status && 'completed' in room.status
+      room.status && 'resolved' in room.status
     ).length;
 
     const totalVolume = allRooms.reduce((sum, room) =>
@@ -281,6 +292,9 @@ export const useLobbyData = () => {
   }, [allRooms]);
 
   return {
+    // Raw data
+    allRooms,
+
     // Data
     availableGames,
     myGames,

@@ -1,6 +1,6 @@
 module.exports = {
   eslint: {
-    enable: false,
+    enable: false, // Disabled to prevent blocking development with style violations
     mode: 'extends',
   },
   jest: {
@@ -20,8 +20,15 @@ module.exports = {
       '@': require('path').resolve(__dirname, 'src'),
     },
     configure: (webpackConfig) => {
+      const webpack = require('webpack');
+
+      // Ensure resolve exists
+      if (!webpackConfig.resolve) {
+        webpackConfig.resolve = {};
+      }
+
+      // Set fallbacks
       webpackConfig.resolve.fallback = {
-        ...webpackConfig.resolve.fallback,
         crypto: require.resolve('crypto-browserify'),
         stream: require.resolve('stream-browserify'),
         buffer: require.resolve('buffer'),
@@ -36,15 +43,15 @@ module.exports = {
         fs: false,
         path: require.resolve('path-browserify'),
       };
-      
-      webpackConfig.plugins = [
-        ...webpackConfig.plugins,
-        new (require('webpack')).ProvidePlugin({
+
+      // Add ProvidePlugin
+      webpackConfig.plugins.push(
+        new webpack.ProvidePlugin({
           process: 'process/browser',
           Buffer: ['buffer', 'Buffer'],
-        }),
-      ];
-      
+        })
+      );
+
       return webpackConfig;
     },
   },

@@ -46,7 +46,11 @@ const getStatusText = (status: string): string => {
   }
 };
 
-export const BlockchainGame: React.FC = () => {
+interface BlockchainGameProps {
+  hideCreateJoinInterface?: boolean;
+}
+
+export const BlockchainGame: React.FC<BlockchainGameProps> = ({ hideCreateJoinInterface = false }) => {
   const { publicKey, connected } = useWallet();
   const { connection } = useConnection();
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
@@ -61,6 +65,7 @@ export const BlockchainGame: React.FC = () => {
     joinRoom,
     rejoinRoom,
     makeSelection,
+    revealChoice,
     resolveGameManually,
     resetGame,
     leaveGame,
@@ -180,6 +185,42 @@ export const BlockchainGame: React.FC = () => {
     }
 
     await joinRoom(roomId);
+  };
+
+  const handleManualReveal = async () => {
+    if (!gameState.roomId) {
+      console.error('No room ID for reveal');
+      return;
+    }
+
+    console.log('🎲 Manual reveal initiated for room:', gameState.roomId);
+
+    try {
+      // Check if commitment exists
+      const commitmentDataStr = localStorage.getItem(`commitment_${gameState.roomId}`);
+      if (!commitmentDataStr) {
+        setError('No commitment found. You need to make a selection first.');
+        return;
+      }
+
+      const commitmentData = JSON.parse(commitmentDataStr);
+      console.log('🔓 Found commitment:', {
+        choice: commitmentData.choice === 0 ? 'heads' : 'tails',
+        hasSecret: !!commitmentData.secret
+      });
+
+      // Call reveal
+      const result = await revealChoice(gameState.roomId);
+      if (result) {
+        console.log('✅ Manual reveal successful!', result);
+        // Force refresh the game state
+        setTimeout(() => forceRecoverGameState(), 2000);
+      }
+    } catch (error) {
+      console.error('❌ Manual reveal error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reveal choice';
+      setError(`Reveal failed: ${errorMessage}`);
+    }
   };
 
   const handleSelection = async (selection: 'heads' | 'tails') => {
@@ -452,7 +493,7 @@ export const BlockchainGame: React.FC = () => {
       )}
 
       {/* Idle State - Create or Join */}
-      {gameState.gameStatus === 'idle' && (
+      {gameState.gameStatus === 'idle' && !hideCreateJoinInterface && (
         <div className="space-y-6">
           {/* Tab Navigation */}
           <div className="tabs tabs-boxed w-fit mx-auto">
@@ -674,17 +715,6 @@ export const BlockchainGame: React.FC = () => {
             <>
               <h3 className="text-lg font-semibold mb-4">Make Your Selection</h3>
 
-              {/* Selection Countdown Timer */}
-              {gameState.selectionDeadline && (
-                <div className="mb-4">
-                  <CountdownTimer
-                    deadline={gameState.selectionDeadline * 1000} // Convert seconds to milliseconds
-                    onTimeout={() => setIsCurrentRoomTimedOut(true)}
-                    showWarningColors
-                    className=""
-                  />
-                </div>
-              )}
 
               {/* Timeout Warning */}
               {isCurrentRoomTimedOut && (
@@ -832,8 +862,8 @@ export const BlockchainGame: React.FC = () => {
       {gameState.gameStatus === 'resolving' && (
         <div className="text-center py-6">
           <div className="mb-6">
-            <div className="loading loading-spinner loading-lg text-primary mb-4" />
-            <h3 className="text-xl font-bold text-primary mb-2">🎲 Game Resolution Phase</h3>
+            <h3 className="text-2xl font-bold text-primary mb-2">🎲 Game Resolution Phase</h3>
+            <p className="text-base-content/70">Room #{gameState.roomId}</p>
           </div>
 
           {gameState.opponentSelection ? (
@@ -868,6 +898,67 @@ export const BlockchainGame: React.FC = () => {
                 <br />
                 This usually updates within 15-30 seconds automatically.
               </p>
+            </div>
+          )}
+
+          {/* Manual reveal button if commitment exists */}
+          {localStorage.getItem(`commitment_${gameState.roomId}`) && (
+            <div className="mt-4 space-y-3">
+              <div className="bg-primary/10 border-2 border-primary/30 rounded-lg p-4">
+                <p className="text-primary font-bold mb-3">🎯 Ready to Reveal!</p>
+                <p className="text-sm text-base-content/80 mb-3">
+                  Both players have made their commitments. Click the button below to reveal your choice and determine the winner.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleManualReveal}
+                  className="btn btn-primary btn-lg w-full"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <span className="loading loading-spinner" />
+                      <span className="ml-2">Revealing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="mr-2">🎲</span>
+                      Reveal My Choice & Complete Game
+                    </>
+                  )}
+                </button>
+                <p className="text-xs text-base-content/60 mt-2 text-center">
+                  This will reveal your committed choice and trigger game resolution
+                </p>
+              </div>
+
+              {/* Force refresh button */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    console.log('🔄 Force refreshing game state...');
+                    await forceRecoverGameState();
+                  }}
+                  className="btn btn-outline btn-sm flex-1"
+                  disabled={loading}
+                >
+                  🔄 Refresh State
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    console.log('📊 Diagnosing game state...');
+                    const result = await diagnoseGameState();
+                    setDiagnosisResult(result);
+                    setShowDiagnostics(true);
+                  }}
+                  className="btn btn-outline btn-sm flex-1"
+                  disabled={loading}
+                >
+                  📊 Diagnose
+                </button>
+              </div>
             </div>
           )}
 

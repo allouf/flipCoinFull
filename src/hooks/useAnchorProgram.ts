@@ -15,36 +15,38 @@ import { PROGRAM_ID, getExplorerUrl } from '../config/program';
 import { retryTransaction, formatTransactionError } from '../utils/transaction';
 import { checkSufficientBalance, formatInsufficientBalanceMessage } from '../utils/balanceValidation';
 import { rpcManager } from '../utils/rpcManager';
+import { markCommitmentRevealed } from '../services/commitmentService';
 
-// Type definitions for the program
+// Type definitions for the program (mapped from Game account in IDL)
 export interface GameRoom {
-  roomId: BN;
-  creator: PublicKey;
-  player1: PublicKey;
-  player2: PublicKey;
+  gameId: BN;  // Changed from roomId
+  playerA: PublicKey;  // Changed from player1
+  playerB: PublicKey | null;  // Changed from player2 - can be null before join
   betAmount: BN;
-  status:
-  | { waitingForPlayer?: Record<string, never> }
-  | { selectionsPending?: Record<string, never> }
-  | { resolving?: Record<string, never> }
-  | { completed?: Record<string, never> }
-  | { cancelled?: Record<string, never> };
-  player1Selection:
-  | { heads?: Record<string, never> }
-  | { tails?: Record<string, never> }
-  | null;
-  player2Selection:
-  | { heads?: Record<string, never> }
-  | { tails?: Record<string, never> }
-  | null;
-  createdAt: BN;
-  // Note: selectionDeadline removed from current program version
-  vrfResult: number[] | null;
-  // Note: vrfStatus also removed from current program version - using simple auto-resolution
-  winner: PublicKey | null;
-  totalPot: BN;
+  houseWallet: PublicKey;
+  commitmentA: number[];  // 32-byte array
+  commitmentB: number[];  // 32-byte array
+  commitmentsComplete: boolean;
+  choiceA: { heads?: {} } | { tails?: {} } | null;  // Optional CoinSide
+  secretA: BN | null;  // Optional u64
+  choiceB: { heads?: {} } | { tails?: {} } | null;  // Optional CoinSide
+  secretB: BN | null;  // Optional u64
+  status: { waitingForPlayer?: {} } | { playersReady?: {} } | { commitmentsReady?: {} } | { revealingPhase?: {} } | { resolved?: {} } | { cancelled?: {} };
+  coinResult: { heads?: {} } | { tails?: {} } | null;  // Optional CoinSide
+  winner: PublicKey | null;  // Optional publicKey
+  houseFee: BN;
+  createdAt: BN;  // i64 in IDL
+  resolvedAt: BN | null;  // Optional i64
   bump: number;
   escrowBump: number;
+
+  // Legacy field mappings for compatibility (added as alias properties)
+  roomId: BN;  // Alias for gameId (required since gameId is required)
+  player1: PublicKey;  // Alias for playerA (required since playerA is required)
+  player2: PublicKey | null;  // Alias for playerB (can be null before someone joins)
+  player1Selection: { heads?: {} } | { tails?: {} } | null;  // Alias for choiceA
+  player2Selection: { heads?: {} } | { tails?: {} } | null;  // Alias for choiceB
+  creator: PublicKey;  // Alias for playerA (creator is always playerA)
 }
 
 export interface GlobalState {
@@ -78,10 +80,15 @@ const deriveGameRoomPDA = (
 const getRoomStatusString = (status: any): string => {
   if (!status) return 'Unknown';
   if (status.waitingForPlayer) return 'WaitingForPlayer';
+  if (status.playersReady) return 'PlayersReady';
+  if (status.commitmentsReady) return 'CommitmentsReady';
+  if (status.revealingPhase) return 'RevealingPhase';
+  if (status.resolved) return 'Resolved';
+  if (status.cancelled) return 'Cancelled';
+  // Legacy support
   if (status.selectionsPending) return 'SelectionsPending';
   if (status.resolving) return 'Resolving';
   if (status.completed) return 'Completed';
-  if (status.cancelled) return 'Cancelled';
   return 'Unknown';
 };
 
@@ -95,13 +102,21 @@ export const useAnchorProgram = () => {
   const initializationRef = useRef(false);
 
   useEffect(() => {
+    console.log('🔧 useAnchorProgram: useEffect triggered', {
+      hasWallet: !!wallet,
+      hasPublicKey: !!wallet?.publicKey,
+      publicKey: wallet?.publicKey?.toString()
+    });
+
     if (!wallet || !wallet.publicKey) {
+      console.log('⚠️ useAnchorProgram: No wallet or public key, clearing program');
       setProgram(null);
       setIsProgramReady(false);
       return;
     }
 
     try {
+      console.log('🔗 useAnchorProgram: Creating Anchor provider and program...');
       const provider = new AnchorProvider(
         connection,
         wallet as any,
@@ -122,14 +137,15 @@ export const useAnchorProgram = () => {
 
       // Only log initialization once per session
       if (!initializationRef.current) {
-        console.log('Program initialized with ID:', PROGRAM_ID.toString());
+        console.log('✅ useAnchorProgram: Program initialized with ID:', PROGRAM_ID.toString());
         initializationRef.current = true;
       }
 
       setProgram(programInstance);
       setIsProgramReady(true);
+      console.log('🚀 useAnchorProgram: Program ready for use!');
     } catch (error) {
-      console.error('Failed to initialize program:', error);
+      console.error('❌ useAnchorProgram: Failed to initialize program:', error);
       setProgram(null);
       initializationRef.current = false;
       setIsProgramReady(false);
@@ -240,8 +256,15 @@ export const useAnchorProgram = () => {
 
       const allRooms = accounts.map((account) => {
         try {
-          // IMPORTANT: Anchor account discriminators use the exact IDL name (e.g., "GameRoom")
-          const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
+          // Decode using the IDL account name "Game"
+          const decoded = program.coder.accounts.decode('Game', account.account.data);
+          // Add legacy field mappings
+          decoded.roomId = decoded.gameId;
+          decoded.player1 = decoded.playerA;
+          decoded.player2 = decoded.playerB;
+          decoded.player1Selection = decoded.choiceA;
+          decoded.player2Selection = decoded.choiceB;
+          decoded.creator = decoded.playerA;
           console.log(`Decoded room: ID=${decoded.roomId?.toNumber()}, PDA=${account.pubkey.toString()}`);
           return { publicKey: account.pubkey, account: decoded };
         } catch (e) {
@@ -273,7 +296,14 @@ export const useAnchorProgram = () => {
     if (!accountInfo) {
       throw new Error('Room account not found');
     }
-    const roomData = program.coder.accounts.decode('GameRoom', accountInfo.data);
+    const roomData = program.coder.accounts.decode('Game', accountInfo.data);
+    // Add legacy field mappings
+    roomData.roomId = roomData.gameId;
+    roomData.player1 = roomData.playerA;
+    roomData.player2 = roomData.playerB;
+    roomData.player1Selection = roomData.choiceA;
+    roomData.player2Selection = roomData.choiceB;
+    roomData.creator = roomData.playerA;
     const roomIdBN = roomData.roomId as BN;
     const creatorKey = roomData.creator as PublicKey;
 
@@ -349,7 +379,9 @@ export const useAnchorProgram = () => {
   }, [program, wallet.publicKey]);
 
   const makeSelection = useCallback(async (roomId: number, selection: 'heads' | 'tails') => {
+    console.log(`🔧 DEBUG makeSelection: Starting with roomId=${roomId}, selection=${selection}`);
     if (!program || !wallet.publicKey) {
+      console.log(`❌ DEBUG makeSelection: Missing program=${!!program} or wallet=${!!wallet.publicKey}`);
       throw new Error('Program not initialized or wallet not connected');
     }
 
@@ -363,12 +395,23 @@ export const useAnchorProgram = () => {
       const allRooms = accounts.map((account) => {
         try {
           // Use correct IDL account name for discriminator derivation
-          const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
+          const decoded = program.coder.accounts.decode('Game', account.account.data);
+          // Add legacy field mappings like in other functions
+          decoded.roomId = decoded.gameId;
+          decoded.player1 = decoded.playerA;
+          decoded.player2 = decoded.playerB;
+          decoded.player1Selection = decoded.choiceA;
+          decoded.player2Selection = decoded.choiceB;
+          decoded.creator = decoded.playerA;
           return { publicKey: account.pubkey, account: decoded };
         } catch {
           return null;
         }
       }).filter((room) => room !== null);
+
+      console.log(`🔧 DEBUG makeSelection: Found ${allRooms.length} rooms, looking for roomId ${roomId}`);
+      console.log(`🔧 DEBUG makeSelection: Available rooms:`, allRooms.map((r: any) => r.account.roomId?.toNumber()));
+
       const targetRoom = allRooms.find(
         (room: any) => room.account?.roomId?.toNumber() === roomId,
       );
@@ -382,9 +425,11 @@ export const useAnchorProgram = () => {
 
       // Check if room is in correct state for making selections
       const roomStatus = roomData.status;
-      console.log('Current room status before selection:', getRoomStatusString(roomStatus));
+      console.log('🔧 DEBUG makeSelection: Current room status before selection:', getRoomStatusString(roomStatus));
+      console.log('🔧 DEBUG makeSelection: roomStatus object:', roomStatus);
+      console.log('🔧 DEBUG makeSelection: roomStatus.playersReady:', roomStatus?.playersReady);
 
-      if (!roomStatus || !roomStatus.selectionsPending) {
+      if (!roomStatus || !roomStatus.playersReady) {
         const statusName = getRoomStatusString(roomStatus);
 
         // Clear cache for this room since we have stale data
@@ -392,12 +437,12 @@ export const useAnchorProgram = () => {
         rpcManager.clearCache();
 
         // If game is already resolving, both players have selected - show appropriate message
-        if (roomStatus && roomStatus.resolving) {
+        if (roomStatus && (roomStatus.commitmentsReady || roomStatus.revealingPhase)) {
           throw new Error(`Cannot make selection: Both players have already selected. Game is now resolving. Current status: ${statusName}`);
         }
 
         // For other invalid states
-        throw new Error(`Cannot make selection: Room status must be 'SelectionsPending' but is currently '${statusName}'. This room may not be ready for selections.`);
+        throw new Error(`Cannot make selection: Room status must be 'PlayersReady' but is currently '${statusName}'. This room may not be ready for selections.`);
       }
 
       // Check if this player has already made a selection
@@ -438,16 +483,45 @@ export const useAnchorProgram = () => {
       throw new Error(`Failed to validate room state: ${error}`);
     }
 
-    // Derive global state PDA
-    const [globalStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('global_state')],
-      PROGRAM_ID,
-    );
+    // Note: No longer need global state PDA since house wallet is in room data
 
-    // Use correct lowercase enum format for Anchor serialization
-    // Anchor expects lowercase variant names despite IDL showing capitalized names
-    const coinSide = selection === 'heads' ? { heads: {} } : { tails: {} };
-    console.log(`Making ${selection} selection using format: ${JSON.stringify(coinSide)}`);
+    // Import the proper commitment generation functions
+    const { generateCommitment, generateSecret } = await import('../utils/gameInstructions');
+
+    // Generate commitment data ONCE outside retry loops to avoid duplicate transactions
+    const secret = generateSecret(); // Use cryptographically secure random
+    const choice = selection === 'heads' ? 0 : 1; // Convert to number for storage
+
+    // Generate commitment using the proper double-hashed method
+    const commitment = generateCommitment(selection, secret);
+
+    console.log(`🎯 Making commitment for ${selection} with secret ${secret.toString()}`);
+    console.log(`🔒 Commitment: ${Buffer.from(commitment).toString('hex')}`);
+
+    // Store the commitment data using the reliable backend service
+    try {
+      const { storeCommitment } = await import('../services/commitmentService');
+      await storeCommitment({
+        walletAddress: wallet.publicKey.toString(),
+        roomId,
+        choice: selection,
+        secret: secret.toString(),
+        commitment: Array.from(commitment)
+      });
+      console.log(`✅ Commitment stored in backend database for room ${roomId}`);
+    } catch (error) {
+      console.warn(`⚠️ Backend storage failed for room ${roomId}, using localStorage fallback:`, error);
+      // Fall back to localStorage as backup
+      const commitmentData = {
+        roomId,
+        choice: selection,
+        choiceNum: choice,
+        secret: secret.toString(),
+        commitment: Array.from(commitment)
+      };
+      localStorage.setItem(`commitment_${roomId}`, JSON.stringify(commitmentData));
+      console.log('⚠️ Stored commitment in localStorage as fallback');
+    }
 
     // Try different enum serialization formats if the first attempt fails
     const enumFormats = [
@@ -480,8 +554,8 @@ export const useAnchorProgram = () => {
         
         // Double-check account state is still valid before transaction
         console.log(`🔍 Validating room state for format ${formatIndex + 1}...`);
-        if (!(room as any).status?.selectionsPending) {
-          throw new Error(`Room state changed: no longer in SelectionsPending state`);
+        if (!(room as any).status?.playersReady) {
+          throw new Error(`Room state changed: no longer in PlayersReady state`);
         }
 
       // Derive escrow PDA
@@ -491,17 +565,12 @@ export const useAnchorProgram = () => {
           (room as any).creator.toBuffer(),
           new BN(roomId).toArrayLike(Buffer, 'le', 8),
         ],
-        PROGRAM_ID,
+        program.programId,
       );
 
-      // Get global state to find house wallet
-      const { connection: conn } = program.provider;
-      const globalStateInfo = await conn.getAccountInfo(globalStatePda);
-      if (!globalStateInfo) {
-        throw new Error('Global state account not found');
-      }
-      const globalStateData = program.coder.accounts.decode('GlobalState', globalStateInfo.data);
-      const houseWallet = globalStateData.houseWallet as PublicKey;
+      // Get house wallet directly from room data (no need for global state)
+      const houseWallet = (room as any).houseWallet as PublicKey;
+      console.log('🏠 House wallet from room data:', houseWallet.toString());
 
         // Create a transaction builder that fetches fresh account data on each attempt
         const buildTransactionWithFreshData = async () => {
@@ -515,14 +584,8 @@ export const useAnchorProgram = () => {
             throw new Error(`Room ${roomId} not found during fresh data fetch`);
           }
           
-          // Get fresh global state data
-          const { connection: freshConn } = program.provider;
-          const freshGlobalStateInfo = await freshConn.getAccountInfo(globalStatePda);
-          if (!freshGlobalStateInfo) {
-            throw new Error('Global state account not found during fresh fetch');
-          }
-          const freshGlobalStateData = program.coder.accounts.decode('GlobalState', freshGlobalStateInfo.data);
-          const freshHouseWallet = freshGlobalStateData.houseWallet as PublicKey;
+          // Get house wallet directly from fresh room data (no need for global state)
+          const freshHouseWallet = (freshRoom as any).houseWallet as PublicKey;
           
           // Derive fresh escrow PDA
           const [freshEscrowPda] = PublicKey.findProgramAddressSync(
@@ -531,22 +594,18 @@ export const useAnchorProgram = () => {
               (freshRoom as any).creator.toBuffer(),
               new BN(roomId).toArrayLike(Buffer, 'le', 8),
             ],
-            PROGRAM_ID,
+            program.programId,
           );
           
           console.log(`🕵️ Using fresh account data: Room=${gameRoomPda.toString().slice(-8)}, Escrow=${freshEscrowPda.toString().slice(-8)}`);
-          
+
+          // Use pre-generated commitment (generated outside retry loop)
+
           return program.methods
-            .makeSelection(coinSide)
+            .makeCommitment(Array.from(commitment))
             .accounts({
-              gameRoom: gameRoomPda,
-              globalState: globalStatePda,
-              escrowAccount: freshEscrowPda,
-              player1: (freshRoom as any).player1,
-              player2: (freshRoom as any).player2,
-              houseWallet: freshHouseWallet,
               player: wallet.publicKey!,
-              systemProgram: SystemProgram.programId,
+              game: gameRoomPda,
             })
             .rpc({
               commitment: 'confirmed',
@@ -655,7 +714,16 @@ export const useAnchorProgram = () => {
       for (const account of accounts) {
         try {
           // Try to decode as GameRoom using exact IDL account name
-          const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
+          const decoded = program.coder.accounts.decode('Game', account.account.data);
+
+          // Add legacy field mappings for compatibility
+          (decoded as any).roomId = decoded.gameId;
+          (decoded as any).player1 = decoded.playerA;
+          (decoded as any).player2 = decoded.playerB;
+          (decoded as any).player1Selection = decoded.choiceA;
+          (decoded as any).player2Selection = decoded.choiceB;
+          (decoded as any).creator = decoded.playerA;
+
           gameRooms.push(decoded);
         } catch (decodeError) {
           // Skip non-GameRoom accounts (like GlobalState) silently
@@ -705,6 +773,110 @@ export const useAnchorProgram = () => {
     }
   }, [program, fetchAllGameRooms]);
 
+  // Reveal the player's choice (after commitment)
+  const revealChoice = useCallback(async (roomId: number) => {
+    if (!program || !wallet.publicKey) {
+      throw new Error('Program not initialized or wallet not connected');
+    }
+
+    console.log(`🎲 Revealing choice for room ${roomId}...`);
+
+    // Get stored commitment data using backend service
+    let commitmentData;
+    try {
+      const { getCommitment } = await import('../services/commitmentService');
+      commitmentData = await getCommitment(wallet.publicKey.toString(), roomId);
+    } catch (error) {
+      console.warn('❌ Failed to get commitment from backend, checking localStorage fallback:', error);
+      commitmentData = null;
+    }
+
+    if (!commitmentData) {
+      // Try localStorage as fallback
+      const commitmentDataStr = localStorage.getItem(`commitment_${roomId}`);
+      if (commitmentDataStr) {
+        try {
+          const localData = JSON.parse(commitmentDataStr);
+          commitmentData = {
+            choice: localData.choice || (localData.choiceNum === 0 ? 'heads' : 'tails'),
+            secret: localData.secret,
+            commitment: localData.commitment
+          };
+          console.log('✅ Found commitment in localStorage fallback');
+        } catch (parseError) {
+          console.error('❌ Failed to parse localStorage commitment:', parseError);
+        }
+      }
+    }
+
+    if (!commitmentData) {
+      // Enhanced debug info
+      console.log('🔍 Debug - No commitment found anywhere:');
+      const allKeys = Object.keys(localStorage);
+      const commitmentKeys = allKeys.filter(key => key.startsWith('commitment_'));
+      console.log('LocalStorage commitment keys:', commitmentKeys);
+
+      throw new Error(`No commitment found for room ${roomId}. Available localStorage keys: ${commitmentKeys.join(', ')}`);
+    }
+
+    // Handle commitment data from backend service
+    const choiceStr = commitmentData.choice;
+    const choice = choiceStr === 'heads' ? { heads: {} } : { tails: {} };
+    const secret = new BN(commitmentData.secret);
+
+    console.log(`🔓 Revealing: choice=${choiceStr}, secret=${secret}`);
+
+    // Get room to get the actual PDA and creator
+    const room = await fetchGameRoom(roomId, true);
+    if (!room) {
+      throw new Error(`Room ${roomId} not found`);
+    }
+
+    // Derive game room PDA using the creator (playerA)
+    const creator = (room as any).playerA || (room as any).creator;
+    const [gameRoomPda] = deriveGameRoomPDA(program.programId, creator, roomId);
+
+    const [escrowPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('escrow'),
+        creator.toBuffer(),
+        new BN(roomId).toArrayLike(Buffer, 'le', 8),
+      ],
+      program.programId,
+    );
+
+    try {
+      const tx = await retryTransaction(
+        program.provider.connection,
+        () => program.methods
+          .revealChoice(choice, secret)
+          .accounts({
+            player: wallet.publicKey!,
+            game: gameRoomPda,
+            playerA: (room as any).playerA || (room as any).player1,
+            playerB: (room as any).playerB || (room as any).player2,
+            houseWallet: (room as any).houseWallet,
+            escrow: escrowPda,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc(),
+      );
+
+      console.log('✅ Choice revealed successfully:', tx);
+
+      // Mark commitment as revealed (cleanup happens automatically)
+      await markCommitmentRevealed(wallet.publicKey.toString(), roomId);
+
+      // Clear cache to get fresh state
+      rpcManager.clearCache();
+
+      return { tx, gameRoomPda };
+    } catch (error: any) {
+      console.error('❌ Error revealing choice:', error);
+      throw error;
+    }
+  }, [program, wallet, fetchGameRoom]);
+
   const resolveGame = useCallback(async (roomId: number) => {
     if (!program || !wallet.publicKey) {
       throw new Error('Program not initialized or wallet not connected');
@@ -731,10 +903,10 @@ export const useAnchorProgram = () => {
           }
 
           // Use correct IDL account name for discriminator derivation
-          const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
+          const decoded = program.coder.accounts.decode('Game', account.account.data);
 
           // Validate decoded data has required fields
-          if (!decoded.roomId || !decoded.status) {
+          if (!decoded.gameId || !decoded.status) {
             console.warn('⚠️ Decoded account missing required fields:', account.pubkey.toString());
             return null;
           }
@@ -750,7 +922,7 @@ export const useAnchorProgram = () => {
       console.log(`✅ Successfully decoded ${allRooms.length} GameRoom accounts`);
 
       const targetRoom = allRooms.find(
-        (room: any) => room.account?.roomId?.toNumber() === roomId,
+        (room: any) => room.account?.gameId?.toNumber() === roomId,
       );
 
       if (!targetRoom) {
@@ -777,13 +949,13 @@ export const useAnchorProgram = () => {
 
       // ENHANCED: Verify room is ready for resolution with multiple valid scenarios
       const isResolving = roomData.status && roomData.status.resolving;
-      const isSelectionsPending = roomData.status && roomData.status.selectionsPending;
+      const isPlayersReady = roomData.status && roomData.status.playersReady;
       const isWaitingForPlayer = roomData.status && roomData.status.waitingForPlayer;
       const bothSelected = roomData.player1Selection && roomData.player2Selection;
 
       console.log('📊 Resolution state check:', {
         isResolving,
-        isSelectionsPending,
+        isPlayersReady,
         isWaitingForPlayer,
         bothSelected,
         p1Selection: roomData.player1Selection ? 'Made' : 'Pending',
@@ -795,12 +967,12 @@ export const useAnchorProgram = () => {
       // 2. Room is in SelectionsPending with both selections made (recovery flow)
       // 3. Allow resolution even if smart contract state is inconsistent but selections exist
       const canResolve = isResolving
-        || (isSelectionsPending && bothSelected)
+        || (isPlayersReady && bothSelected)
         || (bothSelected); // Force resolve if both players selected regardless of state
 
       if (!canResolve) {
         const statusStr = getRoomStatusString(roomData.status);
-        if (isSelectionsPending && !bothSelected) {
+        if (isPlayersReady && !bothSelected) {
           const p1Selected = roomData.player1Selection ? 'Yes' : 'No';
           const p2Selected = roomData.player2Selection ? 'Yes' : 'No';
           throw new Error(`Cannot resolve game: Waiting for player selections (Player 1: ${p1Selected}, Player 2: ${p2Selected})`);
@@ -871,14 +1043,13 @@ export const useAnchorProgram = () => {
       const tx = await retryTransaction(
         program.provider.connection,
         () => program.methods
-          .resolveGame()
+          .resolveGameManual()
           .accounts({
-            gameRoom: gameRoomPda,
-            globalState: globalStatePda,
-            escrowAccount: escrowPda,
-            player1,
-            player2,
+            game: gameRoomPda,
+            playerA: player1,
+            playerB: player2,
             houseWallet,
+            escrow: escrowPda,
             resolver: wallet.publicKey!,
             systemProgram: SystemProgram.programId,
           })
@@ -934,7 +1105,7 @@ export const useAnchorProgram = () => {
       const allRooms = accounts.map((account) => {
         try {
           // Use correct IDL account name for discriminator derivation
-          const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
+          const decoded = program.coder.accounts.decode('Game', account.account.data);
           return { publicKey: account.pubkey, account: decoded };
         } catch {
           return null;
@@ -986,10 +1157,10 @@ export const useAnchorProgram = () => {
         throw new Error('Cannot handle timeout: This is a single-player room that was never joined. Single-player rooms cannot be timed out - they need to be cancelled through a different method or left to expire naturally.');
       }
 
-      // Check if room status allows timeout (must be SelectionsPending)
-      if (!roomStatus || !roomStatus.selectionsPending) {
+      // Check if room status allows timeout (must be PlayersReady)
+      if (!roomStatus || !roomStatus.playersReady) {
         const statusName = getRoomStatusString(roomStatus);
-        throw new Error(`Cannot handle timeout: Room status must be 'SelectionsPending' but is currently '${statusName}'. Only rooms with both players joined can be timed out.`);
+        throw new Error(`Cannot handle timeout: Room status must be 'PlayersReady' but is currently '${statusName}'. Only rooms with both players joined can be timed out.`);
       }
 
       // For valid two-player timeout scenarios
@@ -1040,7 +1211,7 @@ export const useAnchorProgram = () => {
       const accounts = await conn.getProgramAccounts(PROGRAM_ID);
       const allRooms = accounts.map((account) => {
         try {
-          const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
+          const decoded = program.coder.accounts.decode('Game', account.account.data);
           return { publicKey: account.pubkey, account: decoded };
         } catch {
           return null;
@@ -1210,7 +1381,7 @@ export const useAnchorProgram = () => {
       // eslint-disable-next-line no-restricted-syntax
       for (const account of accounts) {
         try {
-          const decoded = program.coder.accounts.decode('GameRoom', account.account.data);
+          const decoded = program.coder.accounts.decode('Game', account.account.data);
           gameRooms.push(decoded);
         } catch {
           // eslint-disable-next-line no-continue
@@ -1253,6 +1424,7 @@ export const useAnchorProgram = () => {
     createRoom,
     joinRoom,
     makeSelection,
+    revealChoice,
     resolveGame,
     fetchGameRoom,
     fetchAllGameRooms,

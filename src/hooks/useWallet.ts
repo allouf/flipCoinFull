@@ -4,8 +4,8 @@ import {
   useConnection,
 } from '@solana/wallet-adapter-react';
 import { WalletName } from '@solana/wallet-adapter-base';
-import { useWalletStore } from '@/stores/walletStore';
-import { SolanaNetwork } from '@/utils/networks';
+import { useWalletStore } from '../stores/walletStore';
+import { SolanaNetwork } from '../utils/networks';
 
 export const useWallet = () => {
   const solanaWallet = useSolanaWallet();

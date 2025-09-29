@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Coins, GamepadIcon, BarChart3, Info, Wallet } from 'lucide-react';
 import { NetworkSelector } from '../NetworkSelector';
@@ -8,7 +8,35 @@ import { useWalletStore } from '../../stores/walletStore';
 
 export const Navigation: React.FC = () => {
   const { connected, publicKey } = useWallet();
-  const { balance } = useWalletStore();
+  const { connection } = useConnection();
+  const { balance, setBalance } = useWalletStore();
+
+  // Fetch wallet balance when connected
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (connected && publicKey && connection) {
+        try {
+          const balanceInLamports = await connection.getBalance(publicKey);
+          const balanceInSol = balanceInLamports / 1_000_000_000; // Convert to SOL
+          setBalance(balanceInSol);
+        } catch (err) {
+          console.error('Failed to fetch balance:', err);
+          setBalance(null);
+        }
+      } else {
+        setBalance(null);
+      }
+    };
+
+    fetchBalance();
+
+    // Refresh balance every 30 seconds when connected
+    const interval = connected ? setInterval(fetchBalance, 30000) : null;
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [connected, publicKey, connection, setBalance]);
 
   const navItems = [
     {
@@ -67,37 +95,55 @@ export const Navigation: React.FC = () => {
       </div>
 
       {/* Right Side - Network & Wallet */}
-      <div className="navbar-end gap-2">
-        {/* Wallet Balance */}
-        {connected && publicKey && (
-          <div className="flex items-center gap-2 bg-base-200/50 rounded-lg px-3 py-1">
-            <Wallet className="w-4 h-4 text-primary" />
-            <span className="text-sm font-mono">
-              {balance !== null ? `${balance.toFixed(3)} SOL` : '-.--- SOL'}
+      <div className="navbar-end gap-3">
+        {/* Network & Status Container */}
+        <div className="flex items-center gap-2">
+          <NetworkSelector />
+
+          {/* Connection Status Indicator */}
+          <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-base-200/50">
+            <div
+              className={`w-2 h-2 rounded-full animate-pulse ${
+                connected ? 'bg-success' : 'bg-error'
+              }`}
+            />
+            <span className="text-xs font-medium text-base-content/80 hidden sm:inline">
+              {connected ? 'Live' : 'Offline'}
             </span>
+          </div>
+        </div>
+
+        {/* Wallet Info & Balance */}
+        {connected && publicKey && (
+          <div className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-primary" />
+              <div className="text-right">
+                <div className="text-xs text-base-content/60 leading-tight">Balance</div>
+                <div className="text-sm font-bold font-mono leading-tight">
+                  {balance !== null ? `${balance.toFixed(4)} SOL` : '-.---- SOL'}
+                </div>
+              </div>
+            </div>
+
+            <div className="w-px h-8 bg-base-300/50"></div>
+
+            <div className="text-right">
+              <div className="text-xs text-base-content/60 leading-tight">Wallet</div>
+              <div className="text-sm font-mono leading-tight">
+                {`${publicKey.toString().slice(0, 4)}...${publicKey.toString().slice(-4)}`}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Network Selector */}
-        <NetworkSelector />
-
-        {/* Connection Status */}
-        <div className="flex items-center gap-2">
-          <div
-            className={`w-2 h-2 rounded-full ${
-              connected ? 'bg-success' : 'bg-error'
-            }`}
-          />
-          <span className="text-sm text-base-content/70 hidden sm:inline">
-            {connected ? 'Connected' : 'Disconnected'}
-          </span>
+        {/* Wallet Connect Button */}
+        <div className="flex items-center">
+          <WalletMultiButton className="!btn !btn-primary !btn-sm !rounded-lg !font-medium !px-4" />
         </div>
 
-        {/* Wallet Button */}
-        <WalletMultiButton className="btn btn-primary btn-sm" />
-
         {/* Mobile Menu */}
-        <div className="dropdown dropdown-end lg:hidden">
+        <div className="dropdown dropdown-end lg:hidden ml-2">
           <div tabIndex={0} role="button" className="btn btn-ghost btn-sm">
             <svg
               className="w-5 h-5"
@@ -115,17 +161,36 @@ export const Navigation: React.FC = () => {
           </div>
           <ul
             tabIndex={0}
-            className="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52"
+            className="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow-lg bg-base-100 border border-base-300/20 rounded-xl w-56"
           >
+            {/* Mobile wallet info */}
+            {connected && publicKey && (
+              <>
+                <li className="px-2 py-3 border-b border-base-300/20">
+                  <div className="flex items-center gap-3">
+                    <Wallet className="w-4 h-4 text-primary" />
+                    <div>
+                      <div className="text-xs text-base-content/60">Balance</div>
+                      <div className="text-sm font-bold font-mono">
+                        {balance !== null ? `${balance.toFixed(4)} SOL` : '-.---- SOL'}
+                      </div>
+                    </div>
+                  </div>
+                </li>
+                <div className="divider my-1"></div>
+              </>
+            )}
+
+            {/* Navigation items */}
             {navItems.map((item) => (
               <li key={`mobile-${item.id}`}>
                 <NavLink
                   to={item.to}
                   className={({ isActive }) =>
-                    `gap-2 ${
+                    `gap-3 py-3 ${
                       isActive
-                        ? 'bg-primary/20 text-primary'
-                        : ''
+                        ? 'bg-primary/20 text-primary border-l-2 border-primary'
+                        : 'hover:bg-base-200'
                     }`
                   }
                 >

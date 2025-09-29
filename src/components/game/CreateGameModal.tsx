@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import { X, Coins } from 'lucide-react';
 import { BET_PRESETS, MIN_BET_SOL, MAX_BET_SOL } from '../../config/constants';
+import { useFairCoinFlipper } from '../../hooks/useFairCoinFlipper';
 
 interface CreateGameModalProps {
   onClose: () => void;
+  onGameCreated?: () => void;
 }
 
-export const CreateGameModal: React.FC<CreateGameModalProps> = ({ onClose }) => {
+export const CreateGameModal: React.FC<CreateGameModalProps> = ({ onClose, onGameCreated }) => {
   const [betAmount, setBetAmount] = useState(BET_PRESETS[0]);
   const [customAmount, setCustomAmount] = useState('');
   const [loading, setLoading] = useState(false);
+  const fairCoinFlipperResult = useFairCoinFlipper();
 
   const handlePresetClick = (amount: number) => {
     setBetAmount(amount);
@@ -29,14 +32,25 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({ onClose }) => 
       return;
     }
 
+    if (!fairCoinFlipperResult) {
+      console.error('Fair coin flipper not initialized');
+      return;
+    }
+
     setLoading(true);
     try {
-      // TODO: Implement game creation
-      console.log('Creating game with bet amount:', betAmount);
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Mock delay
-      onClose();
+      const { createGame } = fairCoinFlipperResult;
+      const success = await createGame(betAmount);
+
+      if (success) {
+        console.log('✅ Game created successfully with bet amount:', betAmount);
+        onClose();
+        onGameCreated?.(); // Notify parent to refresh data
+      } else {
+        console.error('❌ Failed to create game');
+      }
     } catch (error) {
-      console.error('Failed to create game:', error);
+      console.error('❌ Failed to create game:', error);
     } finally {
       setLoading(false);
     }
@@ -163,7 +177,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({ onClose }) => 
             className={`btn btn-primary flex-1 gap-2 ${
               loading ? 'loading' : ''
             }`}
-            disabled={loading || betAmount < MIN_BET_SOL || betAmount > MAX_BET_SOL}
+            disabled={loading || betAmount < MIN_BET_SOL || betAmount > MAX_BET_SOL || !fairCoinFlipperResult}
           >
             {loading ? 'Creating...' : 'Create Game'}
           </button>

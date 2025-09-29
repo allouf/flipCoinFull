@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useFairCoinFlipper, CoinSide, GamePhase } from '../hooks/useFairCoinFlipper';
+import { useLobbyData } from '../hooks/useLobbyData';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletConnectButton } from './WalletConnectButton';
+import CoinFlipAnimation from './CoinFlipAnimation';
+import '../styles/CoinFlipAnimation.css';
 
 // Sub-components
 const PhaseIndicator: React.FC<{ phase: GamePhase }> = ({ phase }) => {
@@ -248,8 +251,24 @@ const NotificationList: React.FC<{
 };
 
 // Main Component
-export const GameInterface: React.FC = () => {
+interface GameInterfaceProps {
+  gameId?: string;
+}
+
+export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
   const { connected } = useWallet();
+  const fairCoinFlipperResult = useFairCoinFlipper();
+  const { allRooms } = useLobbyData();
+
+  // Handle when wallet is not connected
+  if (!fairCoinFlipperResult) {
+    return (
+      <div className="text-center p-8">
+        <p className="text-gray-600">Please connect your wallet to access the game interface.</p>
+      </div>
+    );
+  }
+
   const {
     gameState,
     notifications,
@@ -259,12 +278,93 @@ export const GameInterface: React.FC = () => {
     resetGame,
     generateGameId,
     dismissNotification,
-  } = useFairCoinFlipper();
+    fetchGameData,
+    loadGameByPda,
+    rejoinExistingGame,
+  } = fairCoinFlipperResult;
+
+  // DEBUG: Log current game state
+  console.log('🎮 GameInterface - Current game state:', {
+    phase: gameState.phase,
+    gameId: gameState.gameId,
+    playerChoice: gameState.playerChoice,
+    blockchainStatus: gameState.blockchainStatus,
+    isLoading: gameState.isLoading,
+  });
 
   // Local UI state
   const [selectedChoice, setSelectedChoice] = useState<CoinSide>('heads');
   const [betAmount, setBetAmount] = useState<number>(0.1);
   const [joinGameId, setJoinGameId] = useState<string>('');
+
+  // State for viewing specific game
+  const [specificGameData, setSpecificGameData] = useState<any>(null);
+  const [loadingGameData, setLoadingGameData] = useState(false);
+
+  // State for coin flip animation
+  const [showCoinFlip, setShowCoinFlip] = useState(false);
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [revealResult, setRevealResult] = useState<CoinSide | null>(null);
+
+  // Load specific game data when gameId is provided
+  useEffect(() => {
+    // Only search if we have gameId AND allRooms is populated
+    if (gameId && allRooms && allRooms.length > 0) {
+      console.log('🔍 Looking for game in allRooms with ID:', gameId, 'Available rooms:', allRooms.length);
+      setLoadingGameData(true);
+
+      // Find the game in allRooms by gameId (comparing as numbers)
+      const foundGame = allRooms.find((room: any) => {
+        const roomGameId = room.gameId?.toString() || '';
+        // Compare as strings (both should be decimal representations)
+        return roomGameId === gameId;
+      });
+
+      if (foundGame) {
+        console.log('📊 Found game data:', foundGame);
+        // Convert blockchain data to displayable format
+        const betAmountSol = foundGame.betAmount ? (foundGame.betAmount.toNumber() / 1e9) : 0;
+        const houseFeeSOL = foundGame.houseFee ? (foundGame.houseFee.toNumber() / 1e9) : 0;
+
+        const formattedGameData = {
+          gameId: foundGame.gameId?.toString() || '',
+          status: foundGame.status ? Object.keys(foundGame.status)[0] : 'unknown',
+          betAmount: betAmountSol, // Convert lamports to SOL
+          playerA: foundGame.playerA?.toString() || '',
+          playerB: foundGame.playerB?.toString() || '',
+          coinResult: foundGame.coinResult ? Object.keys(foundGame.coinResult)[0] : null,
+          winner: foundGame.winner?.toString() || null,
+          // Calculate winner payout: 2x bet minus house fee
+          winnerPayout: foundGame.winner ? (betAmountSol * 2 - houseFeeSOL) : null,
+        };
+        setSpecificGameData(formattedGameData);
+
+        // Update game state based on blockchain status
+        if (foundGame.status) {
+          if ('commitmentsReady' in foundGame.status) {
+            console.log('🎯 Game has commitments ready - rejoining game to set revealing phase');
+            // gameId is already a decimal string, just parse it as base 10
+            const numericGameId = parseInt(gameId, 10);
+            console.log('🔢 Calling rejoinExistingGame with:', numericGameId);
+            rejoinExistingGame(numericGameId);
+          } else if ('resolved' in foundGame.status) {
+            console.log('🎯 Game is resolved, showing results');
+          } else if ('waitingForPlayer' in foundGame.status) {
+            console.log('🎯 Game is waiting for player - loading game for join option');
+            // gameId is already a decimal string, just parse it as base 10
+            const numericGameId = parseInt(gameId, 10);
+            console.log('🔢 Calling rejoinExistingGame with:', numericGameId);
+            rejoinExistingGame(numericGameId);
+          }
+        }
+      } else {
+        console.log('❌ Game not found in allRooms');
+        setSpecificGameData(null);
+      }
+
+      setLoadingGameData(false);
+    }
+  }, [gameId, allRooms]);
 
   // Reset local state when game resets
   useEffect(() => {
@@ -295,10 +395,36 @@ export const GameInterface: React.FC = () => {
   };
 
   const handleRevealChoice = async () => {
+    console.log('🔥 REVEAL BUTTON CLICKED!', {
+      phase: gameState.phase,
+      gameId: gameState.gameId,
+      playerChoice: gameState.playerChoice,
+      isLoading: gameState.isLoading
+    });
+
+    // Start the reveal process
+    setIsRevealing(true);
+
+    // Call the actual reveal function
     const success = await revealChoice();
     if (success) {
-      console.log('Choice revealed successfully');
+      console.log('✅ Choice revealed successfully, starting coin flip animation');
+
+      // Get the coin result from the game state (from blockchain)
+      const coinResult: CoinSide = gameState.coinResult || (Math.random() > 0.5 ? 'heads' : 'tails');
+      setRevealResult(coinResult);
+      setShowCoinFlip(true);
+    } else {
+      console.error('❌ Failed to reveal choice');
+      setIsRevealing(false);
     }
+  };
+
+  const handleAnimationComplete = () => {
+    console.log('🎬 Coin flip animation completed');
+    setShowCoinFlip(false);
+    setIsRevealing(false);
+    // Results will be shown by the GameResult component
   };
 
   const generateNewGameId = () => {
@@ -343,6 +469,104 @@ export const GameInterface: React.FC = () => {
         </div>
       </div>
 
+      {/* Specific Game Data Display */}
+      {gameId && (
+        <div className="mb-8">
+          {loadingGameData && (
+            <div className="text-center p-4">
+              <div className="loading loading-spinner loading-md mb-2"></div>
+              <p className="text-gray-600">Loading game #{gameId}...</p>
+            </div>
+          )}
+
+          {specificGameData && (
+            <div className="bg-white rounded-lg p-6 shadow-md">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-xl font-bold">Game #{gameId}</h2>
+                  <p className="text-gray-600">Status: {specificGameData.status}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-semibold">{specificGameData.betAmount} SOL</p>
+                  <p className="text-sm text-gray-600">Bet Amount</p>
+                </div>
+              </div>
+
+              {specificGameData.status === 'resolved' && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-green-800 mb-2">🏁 Game Complete</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Coin Result:</span>
+                      <span className="ml-2 font-medium">
+                        {specificGameData.coinResult ? specificGameData.coinResult.toUpperCase() : 'Unknown'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Winner:</span>
+                      <span className="ml-2 font-medium">
+                        {specificGameData.winner || 'Unknown'}
+                      </span>
+                    </div>
+                  </div>
+                  {specificGameData.winnerPayout && (
+                    <div className="mt-2 text-sm">
+                      <span className="text-gray-600">Payout:</span>
+                      <span className="ml-2 font-medium text-green-600">
+                        {specificGameData.winnerPayout.toFixed(4)} SOL
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {specificGameData.status === 'waitingForPlayer' && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-yellow-800">⏳ This game is waiting for a second player to join.</p>
+                </div>
+              )}
+
+              {specificGameData.status === 'playersReady' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-blue-800">🎯 Both players have joined. Game is ready to begin!</p>
+                </div>
+              )}
+
+              {(specificGameData.status === 'revealingPhase' || specificGameData.status === 'commitmentsReady') && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-2">
+                  <h3 className="font-semibold text-orange-800">🎭 Reveal Phase</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Player A:</span>
+                      <span className="ml-2 font-medium">
+                        {specificGameData.playerARevealed ? '✅ Revealed' : '⏳ Waiting'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Player B:</span>
+                      <span className="ml-2 font-medium">
+                        {specificGameData.playerBRevealed ? '✅ Revealed' : '⏳ Waiting'}
+                      </span>
+                    </div>
+                  </div>
+                  {(specificGameData.playerARevealed || specificGameData.playerBRevealed) && (
+                    <p className="text-sm text-orange-700">
+                      💫 One player has revealed their choice. Waiting for the other player...
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!loadingGameData && !specificGameData && gameId && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+              <p className="text-red-800">❌ Game #{gameId} not found or failed to load.</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Game Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Game Controls */}
@@ -350,22 +574,61 @@ export const GameInterface: React.FC = () => {
           {/* Choice Selection */}
           <div className="bg-white rounded-lg p-6 shadow-md">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Choose Your Side
+              {gameState.phase === 'revealing' ? 'Your Committed Choice' : 'Choose Your Side'}
             </h3>
             <div className="flex justify-center space-x-8">
               <CoinChoice
                 side="heads"
-                selected={selectedChoice === 'heads'}
+                selected={gameState.phase === 'revealing' ? gameState.playerChoice === 'heads' : selectedChoice === 'heads'}
                 disabled={gameState.phase !== 'idle' && gameState.phase !== 'waiting'}
-                onClick={() => setSelectedChoice('heads')}
+                onClick={() => {
+                  console.log('🟡 HEADS BUTTON CLICKED!', {
+                    phase: gameState.phase,
+                    playerChoice: gameState.playerChoice,
+                    selectedChoice: selectedChoice,
+                    disabled: gameState.phase !== 'idle' && gameState.phase !== 'waiting'
+                  });
+                  if (gameState.phase === 'revealing') {
+                    console.log('❌ HEADS BUTTON CLICKED DURING REVEAL - THIS SHOULD NOT HAPPEN!');
+                    return;
+                  }
+                  setSelectedChoice('heads');
+                }}
               />
               <CoinChoice
                 side="tails"
-                selected={selectedChoice === 'tails'}
+                selected={gameState.phase === 'revealing' ? gameState.playerChoice === 'tails' : selectedChoice === 'tails'}
                 disabled={gameState.phase !== 'idle' && gameState.phase !== 'waiting'}
-                onClick={() => setSelectedChoice('tails')}
+                onClick={() => {
+                  console.log('🟡 TAILS BUTTON CLICKED!', {
+                    phase: gameState.phase,
+                    playerChoice: gameState.playerChoice,
+                    selectedChoice: selectedChoice,
+                    disabled: gameState.phase !== 'idle' && gameState.phase !== 'waiting'
+                  });
+                  if (gameState.phase === 'revealing') {
+                    console.log('❌ TAILS BUTTON CLICKED DURING REVEAL - THIS SHOULD NOT HAPPEN!');
+                    return;
+                  }
+                  setSelectedChoice('tails');
+                }}
               />
             </div>
+            {gameState.phase === 'revealing' && (
+              <div className="mt-4 text-center">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+                  <p className="text-sm text-yellow-800 font-medium">
+                    ⚠️ <strong>Do NOT click the coin buttons above!</strong>
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    They are just showing your committed choice. You cannot change it.
+                  </p>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Your choice is locked in. Click "🎲 Flip Coin & Reveal" below to complete the game.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Game Actions */}
@@ -456,21 +719,52 @@ export const GameInterface: React.FC = () => {
               </div>
             )}
 
-            {gameState.phase === 'revealing' && (
+{gameState.phase === 'revealing' && (
               <div className="text-center">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                  Time to Reveal!
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  Both players have committed. Reveal your choice to complete the game.
-                </p>
-                <button
-                  onClick={handleRevealChoice}
-                  disabled={gameState.isLoading}
-                  className="px-8 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold rounded-lg hover:from-orange-600 hover:to-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  {gameState.isLoading ? 'Revealing...' : 'Reveal Choice'}
-                </button>
+                {!showCoinFlip ? (
+                  <>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                      {gameState.isPlayerRevealed ? 'Waiting for Other Player' : 'Time to Reveal!'}
+                    </h3>
+                    <p className="text-gray-600 mb-6">
+                      {gameState.isPlayerRevealed
+                        ? "Please wait while the other player reveals their choice..."
+                        : "Both players have committed. Click reveal to see the results!"}
+                    </p>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                      <p className="text-sm text-blue-700">
+                        🔒 <strong>Your committed choice:</strong> {gameState.playerChoice?.toUpperCase()}
+                        <br />
+                        You cannot change this - it was cryptographically locked when you joined.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleRevealChoice}
+                      disabled={gameState.isLoading || isRevealing}
+                      className="px-8 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold rounded-lg hover:from-orange-600 hover:to-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    >
+                      {gameState.isLoading || isRevealing ? 'Revealing...' : '🎲 Reveal Results'}
+                    </button>
+                  </>
+                ) : (
+                  /* Show the coin flip animation */
+                  <div className="coin-flip-container">
+                    <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                      🎲 Flipping the Coin!
+                    </h3>
+                    <div className="bg-white rounded-xl p-6 shadow-lg">
+                      {revealResult && (
+                        <CoinFlipAnimation
+                          result={revealResult}
+                          onAnimationComplete={handleAnimationComplete}
+                          duration={3000}
+                          autoStart={true}
+                          showResult={true}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

@@ -15,7 +15,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 
 // Pages
-import { GameLobbyPage } from './pages/GameLobbyPage';
+import { LobbyPage } from './pages/LobbyPage';
+import { GameRoomPage } from './pages/GameRoomPage';
 import { StatsPage } from './pages/StatsPage';
 import { AboutPage } from './pages/AboutPage';
 
@@ -41,7 +42,7 @@ function App() {
     ? WalletAdapterNetwork.Mainnet
     : WalletAdapterNetwork.Devnet;
 
-  const endpoint = process.env.REACT_APP_RPC_ENDPOINT || clusterApiUrl(network);
+  const endpoint = process.env.REACT_APP_DEVNET_RPC_URL || process.env.REACT_APP_RPC_ENDPOINT || clusterApiUrl(network);
 
   const wallets = React.useMemo(
     () => [
@@ -61,7 +62,8 @@ function App() {
                 <Routes>
                   <Route path="/" element={<MainLayout />}>
                     <Route index element={<Navigate to="/lobby" replace />} />
-                    <Route path="lobby" element={<GameLobbyPage />} />
+                    <Route path="lobby" element={<LobbyPage />} />
+                    <Route path="game/:gameId" element={<GameRoomPage />} />
                     <Route path="stats" element={<StatsPage />} />
                     <Route path="about" element={<AboutPage />} />
                   </Route>

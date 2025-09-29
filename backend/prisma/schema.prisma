@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model PlayerCommitment {
+  id           String   @id @default(cuid())
+  walletAddress String  @map("wallet_address")
+  roomId       BigInt   @map("room_id")
+  choice       String   // 'heads' or 'tails'
+  choiceNum    Int      @map("choice_num") // 0 for heads, 1 for tails
+  secret       String   // The secret value
+  commitment   String   // JSON array of commitment hash bytes
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  revealed     Boolean  @default(false)
+
+  @@unique([walletAddress, roomId], name: "unique_wallet_room")
+  @@map("player_commitments")
+}
+
+model GameHistory {
+  id              String   @id @default(cuid())
+  roomId          BigInt   @unique @map("room_id")
+  player1Address  String   @map("player1_address")
+  player2Address  String?  @map("player2_address")
+  player1Choice   String?  @map("player1_choice")
+  player2Choice   String?  @map("player2_choice")
+  winner          String?  // wallet address of winner
+  result          String?  // 'heads' or 'tails'
+  status          String   @default("created") // 'created', 'active', 'resolved', 'cancelled'
+  amount          String   // bet amount in lamports as string to avoid precision issues
+  createdAt       DateTime @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
+
+  @@map("game_history")
+}
+
+model PlayerStats {
+  id            String   @id @default(cuid())
+  walletAddress String   @unique @map("wallet_address")
+  totalGames    Int      @default(0) @map("total_games")
+  gamesWon      Int      @default(0) @map("games_won")
+  gamesLost     Int      @default(0) @map("games_lost")
+  totalWinnings String   @default("0") @map("total_winnings") // in lamports as string
+  totalLosses   String   @default("0") @map("total_losses") // in lamports as string
+  winRate       Float    @default(0.0) @map("win_rate") // calculated field
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("player_stats")
+}
