@@ -2,6 +2,9 @@
 
 # dependencies
 /node_modules
+backend/node_modules
+scripts/node_modules
+**/node_modules
 /.pnp
 .pnp.js
 
@@ -10,6 +13,8 @@
 
 # production
 /build
+backend/build
+**/build
 
 # misc
 .DS_Store
@@ -52,9 +57,12 @@ test-ledger/
 .claude/
 
 # Archive files
+*.bz2
 *.tar.bz2
 *.tar.gz
 *.zip
+*.rar
+*.7z
 .vercel
 
 # Credentials and sensitive files - NEVER COMMIT
