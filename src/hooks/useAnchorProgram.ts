@@ -153,12 +153,24 @@ export const useAnchorProgram = () => {
   }, [connection, wallet]);
 
   const createRoom = useCallback(async (roomId: number, betAmountSol: number) => {
+    console.log('\n🎬 ========== CREATE GAME FLOW START ==========');
+    console.log('📋 createRoom called with:', { roomId, betAmountSol });
+    console.log('🕒 Timestamp:', new Date().toISOString());
+
     if (!program || !wallet.publicKey) {
+      console.error('❌ PRECONDITION FAILED: Missing program or wallet');
+      console.error('  - program:', !!program);
+      console.error('  - wallet.publicKey:', !!wallet.publicKey);
       throw new Error('Program not initialized or wallet not connected');
     }
 
+    console.log('✅ Preconditions passed');
+    console.log('👛 Wallet:', wallet.publicKey.toString());
+    console.log('🔗 Program ID:', program.programId.toString());
+
     // Check balance before attempting transaction
-    console.log('Checking wallet balance before creating room...');
+    console.log('\n💰 Step 1: Balance Validation');
+    console.log('  Checking wallet balance before creating room...');
     const balanceCheck = await checkSufficientBalance(
       program.provider.connection,
       wallet.publicKey,
@@ -172,23 +184,34 @@ export const useAnchorProgram = () => {
         balanceCheck.required,
         balanceCheck.shortage,
       );
-      console.log('Insufficient balance detected:', balanceCheck);
+      console.error('❌ BALANCE CHECK FAILED:', balanceCheck);
+      console.error('  - Current:', balanceCheck.currentBalance, 'SOL');
+      console.error('  - Required:', balanceCheck.required, 'SOL');
+      console.error('  - Shortage:', balanceCheck.shortage, 'SOL');
       throw new Error(errorMessage);
     }
 
-    console.log('Balance check passed:', balanceCheck);
+    console.log('✅ Balance check passed:', {
+      current: balanceCheck.currentBalance,
+      required: balanceCheck.required,
+      available: balanceCheck.currentBalance - balanceCheck.required
+    });
+
     const betAmount = new BN(betAmountSol * LAMPORTS_PER_SOL);
     const roomIdBN = new BN(roomId);
+    console.log('  Bet amount (lamports):', betAmount.toString());
+    console.log('  Room ID (BN):', roomIdBN.toString());
 
     // Derive PDAs
-    console.log('Creating room with:');
-    console.log('- Program ID:', program.programId.toString());
-    console.log('- Creator:', wallet.publicKey.toString());
-    console.log('- Room ID:', roomId);
+    console.log('\n🔑 Step 2: PDA Derivation');
+    console.log('  Deriving Program Derived Addresses...');
 
-    const [gameRoomPda] = deriveGameRoomPDA(program.programId, wallet.publicKey, roomId);
+    const [gameRoomPda, gameRoomBump] = deriveGameRoomPDA(program.programId, wallet.publicKey, roomId);
+    console.log('  ✅ Game Room PDA:', gameRoomPda.toString());
+    console.log('     Bump:', gameRoomBump);
+
     // Derive escrow PDA
-    const [escrowPda] = PublicKey.findProgramAddressSync(
+    const [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('escrow'),
         wallet.publicKey.toBuffer(),
@@ -196,18 +219,34 @@ export const useAnchorProgram = () => {
       ],
       program.programId,
     );
+    console.log('  ✅ Escrow PDA:', escrowPda.toString());
+    console.log('     Bump:', escrowBump);
 
     // Derive global state PDA (required by CreateRoom struct)
-    const [globalStatePda] = PublicKey.findProgramAddressSync(
+    const [globalStatePda, globalBump] = PublicKey.findProgramAddressSync(
       [Buffer.from('global_state')],
       program.programId,
     );
+    console.log('  ✅ Global State PDA:', globalStatePda.toString());
+    console.log('     Bump:', globalBump);
 
-    console.log('- Game Room PDA:', gameRoomPda.toString());
-    console.log('- Escrow PDA:', escrowPda.toString());
-    console.log('- Global State PDA:', globalStatePda.toString());
+    console.log('\n📝 Step 3: Transaction Preparation');
+    console.log('  Building createRoom instruction...');
+    console.log('  Accounts:');
+    console.log('    - gameRoom:', gameRoomPda.toString());
+    console.log('    - escrowAccount:', escrowPda.toString());
+    console.log('    - globalState:', globalStatePda.toString());
+    console.log('    - creator:', wallet.publicKey.toString());
+    console.log('    - systemProgram:', SystemProgram.programId.toString());
+    console.log('  Arguments:');
+    console.log('    - roomId:', roomIdBN.toString());
+    console.log('    - betAmount:', betAmount.toString(), `(${betAmountSol} SOL)`);
 
     try {
+      console.log('\n🚀 Step 4: Transaction Execution');
+      console.log('  Submitting transaction to Solana network...');
+      console.log('  Retry config: { maxRetries: 3, retryDelay: 1000ms }');
+
       const tx = await retryTransaction(
         program.provider.connection,
         () => program.methods
@@ -227,14 +266,32 @@ export const useAnchorProgram = () => {
         { maxRetries: 3, retryDelay: 1000 },
       );
 
+      console.log('\n✅ ========== CREATE GAME SUCCESS ==========');
+      console.log('🎉 Transaction confirmed!');
+      console.log('📝 Transaction signature:', tx);
+      console.log('🔗 Explorer URL:', getExplorerUrl(tx));
+      console.log('🏠 Game Room PDA:', gameRoomPda.toString());
+      console.log('🕒 Completed at:', new Date().toISOString());
+      console.log('========================================\n');
+
       return { tx, gameRoomPda };
     } catch (error) {
       // Handle user rejection gracefully
       if (error instanceof Error && error.message.includes('User rejected')) {
-        console.log('Transaction cancelled by user');
+        console.log('\n⚠️  ========== TRANSACTION CANCELLED ==========');
+        console.log('👤 User rejected the transaction');
+        console.log('🕒 Cancelled at:', new Date().toISOString());
+        console.log('==========================================\n');
         throw new Error('Transaction cancelled');
       }
-      console.error('Error creating room:', error);
+
+      console.error('\n❌ ========== CREATE GAME FAILED ==========');
+      console.error('💥 Error type:', error?.constructor?.name);
+      console.error('📄 Error message:', (error as Error).message);
+      console.error('🔍 Full error:', error);
+      console.error('🕒 Failed at:', new Date().toISOString());
+      console.error('=========================================\n');
+
       const formattedError = new Error(formatTransactionError(error as Error));
       throw formattedError;
     }

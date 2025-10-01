@@ -10,6 +10,7 @@
  */
 
 import { indexedDBStorage } from '../utils/indexedDBStorage';
+import { debugLogger } from '../utils/debugLogger';
 
 export interface CommitmentData {
   walletAddress: string;
@@ -46,9 +47,29 @@ export interface GetCommitmentResponse {
  * Backend never sees the secret or choice!
  */
 export async function storeCommitment(data: StoreCommitmentRequest): Promise<StoreCommitmentResponse> {
+  debugLogger.flowStart('STORE COMMITMENT', {
+    walletAddress: data.walletAddress.slice(0, 8) + '...',
+    roomId: data.roomId,
+    choice: data.choice,
+    commitmentHash: Buffer.from(data.commitment).toString('hex').slice(0, 16) + '...'
+  });
+
   try {
-    console.log(`🔐 Storing commitment LOCALLY for ${data.walletAddress} in room ${data.roomId}`);
-    console.log(`🔒 SECRET STAYS ON YOUR DEVICE - Backend cannot see it!`);
+    debugLogger.step(1, 'Prepare Commitment Data', {
+      walletAddress: data.walletAddress,
+      roomId: data.roomId,
+      choice: data.choice,
+      choiceNum: data.choice === 'heads' ? 0 : 1,
+      secretLength: data.secret.length,
+      commitmentLength: data.commitment.length,
+      storageLocation: 'CLIENT-SIDE ONLY (IndexedDB + localStorage)'
+    });
+
+    debugLogger.warning('🔒 SECURITY: Secret NEVER leaves your device!', {
+      backend: 'CANNOT see your choice',
+      storage: 'IndexedDB (primary) + localStorage (backup)',
+      secure: true
+    });
 
     const commitmentData = {
       walletAddress: data.walletAddress,
@@ -61,17 +82,43 @@ export async function storeCommitment(data: StoreCommitmentRequest): Promise<Sto
     };
 
     // Try IndexedDB first (most reliable)
+    debugLogger.step(2, 'Store in IndexedDB (Primary Storage)');
+    const startTime = performance.now();
     try {
       await indexedDBStorage.storeCommitment(commitmentData);
-      console.log(`✅ Commitment stored in IndexedDB`);
+      const duration = performance.now() - startTime;
+      debugLogger.success(`✅ Commitment stored in IndexedDB`, {
+        duration: `${duration.toFixed(2)}ms`,
+        size: JSON.stringify(commitmentData).length + ' bytes'
+      });
     } catch (dbError) {
-      console.warn('⚠️ IndexedDB failed, using localStorage fallback:', dbError);
+      const duration = performance.now() - startTime;
+      debugLogger.warning('⚠️  IndexedDB storage failed, using localStorage fallback', {
+        error: dbError instanceof Error ? dbError.message : String(dbError),
+        duration: `${duration.toFixed(2)}ms`
+      });
     }
 
     // Always store in localStorage as backup
+    debugLogger.step(3, 'Store in localStorage (Backup Storage)');
     const localStorageKey = `commitment_${data.walletAddress}_${data.roomId}`;
+    const startTimeLS = performance.now();
     localStorage.setItem(localStorageKey, JSON.stringify(commitmentData));
-    console.log(`✅ Commitment also stored in localStorage (backup)`);
+    const durationLS = performance.now() - startTimeLS;
+
+    debugLogger.success(`✅ Commitment also stored in localStorage`, {
+      key: localStorageKey,
+      duration: `${durationLS.toFixed(2)}ms`,
+      size: JSON.stringify(commitmentData).length + ' bytes'
+    });
+
+    debugLogger.flowSuccess('STORE COMMITMENT', {
+      success: true,
+      storage: 'client-side-only',
+      locations: ['IndexedDB (attempted)', 'localStorage (backup)'],
+      walletAddress: data.walletAddress.slice(0, 8) + '...',
+      roomId: data.roomId
+    });
 
     return {
       success: true,
@@ -79,7 +126,10 @@ export async function storeCommitment(data: StoreCommitmentRequest): Promise<Sto
       storage: 'client-side-only',
     };
   } catch (error) {
-    console.error(`❌ Failed to store commitment:`, error);
+    debugLogger.flowError('STORE COMMITMENT', error, {
+      walletAddress: data.walletAddress.slice(0, 8) + '...',
+      roomId: data.roomId
+    });
     throw error;
   }
 }
@@ -88,34 +138,94 @@ export async function storeCommitment(data: StoreCommitmentRequest): Promise<Sto
  * Retrieve a commitment from LOCAL storage only
  */
 export async function getCommitment(walletAddress: string, roomId: number): Promise<CommitmentData | null> {
-  try {
-    console.log(`🔍 Retrieving commitment LOCALLY for ${walletAddress} in room ${roomId}`);
+  debugLogger.flowStart('RETRIEVE COMMITMENT', {
+    walletAddress: walletAddress.slice(0, 8) + '...',
+    roomId,
+    searchingIn: ['IndexedDB (primary)', 'localStorage (fallback)']
+  });
 
+  try {
     // Try IndexedDB first
+    debugLogger.step(1, 'Search in IndexedDB (Primary Storage)');
+    const startTime = performance.now();
     try {
       const commitment = await indexedDBStorage.getCommitment(walletAddress, roomId);
+      const duration = performance.now() - startTime;
+
       if (commitment) {
-        console.log(`✅ Found commitment in IndexedDB`);
+        debugLogger.success(`✅ Found commitment in IndexedDB`, {
+          duration: `${duration.toFixed(2)}ms`,
+          choice: commitment.choice,
+          hasSecret: !!commitment.secret,
+          secretLength: commitment.secret?.length,
+          timestamp: new Date(commitment.timestamp).toISOString()
+        });
+
+        debugLogger.flowSuccess('RETRIEVE COMMITMENT', {
+          found: true,
+          source: 'IndexedDB',
+          roomId,
+          choice: commitment.choice
+        });
+
         return commitment as CommitmentData;
+      } else {
+        debugLogger.warning('⚠️  Commitment not found in IndexedDB', {
+          duration: `${duration.toFixed(2)}ms`
+        });
       }
     } catch (dbError) {
-      console.warn('⚠️ IndexedDB read failed, trying localStorage:', dbError);
+      const duration = performance.now() - startTime;
+      debugLogger.warning('⚠️  IndexedDB read failed, trying localStorage fallback', {
+        error: dbError instanceof Error ? dbError.message : String(dbError),
+        duration: `${duration.toFixed(2)}ms`
+      });
     }
 
     // Fallback to localStorage
+    debugLogger.step(2, 'Search in localStorage (Fallback Storage)');
     const localStorageKey = `commitment_${walletAddress}_${roomId}`;
+    const startTimeLS = performance.now();
     const stored = localStorage.getItem(localStorageKey);
+    const durationLS = performance.now() - startTimeLS;
 
     if (!stored) {
-      console.log(`⚠️ No commitment found in IndexedDB or localStorage`);
+      debugLogger.warning('⚠️  No commitment found in localStorage either', {
+        key: localStorageKey,
+        duration: `${durationLS.toFixed(2)}ms`
+      });
+
+      debugLogger.flowSuccess('RETRIEVE COMMITMENT', {
+        found: false,
+        searched: ['IndexedDB', 'localStorage'],
+        result: 'Commitment not found'
+      });
+
       return null;
     }
 
     const commitment = JSON.parse(stored);
-    console.log(`✅ Retrieved commitment from localStorage`);
+    debugLogger.success(`✅ Retrieved commitment from localStorage`, {
+      key: localStorageKey,
+      duration: `${durationLS.toFixed(2)}ms`,
+      choice: commitment.choice,
+      hasSecret: !!commitment.secret,
+      timestamp: new Date(commitment.timestamp).toISOString()
+    });
+
+    debugLogger.flowSuccess('RETRIEVE COMMITMENT', {
+      found: true,
+      source: 'localStorage (fallback)',
+      roomId,
+      choice: commitment.choice
+    });
+
     return commitment as CommitmentData;
   } catch (error) {
-    console.error(`❌ Failed to retrieve commitment:`, error);
+    debugLogger.flowError('RETRIEVE COMMITMENT', error, {
+      walletAddress: walletAddress.slice(0, 8) + '...',
+      roomId
+    });
     throw error;
   }
 }
@@ -137,23 +247,53 @@ export async function hasCommitment(walletAddress: string, roomId: number): Prom
  * Mark a commitment as revealed (delete from local storage)
  */
 export async function markCommitmentRevealed(walletAddress: string, roomId: number): Promise<void> {
-  try {
-    console.log(`🗑️ Deleting revealed commitment from local storage`);
+  debugLogger.flowStart('DELETE COMMITMENT', {
+    walletAddress: walletAddress.slice(0, 8) + '...',
+    roomId,
+    reason: 'Commitment revealed - cleanup'
+  });
 
+  try {
     // Delete from IndexedDB
+    debugLogger.step(1, 'Delete from IndexedDB');
+    const startTime = performance.now();
     try {
       await indexedDBStorage.deleteCommitment(walletAddress, roomId);
-      console.log(`✅ Deleted commitment from IndexedDB`);
+      const duration = performance.now() - startTime;
+      debugLogger.success(`✅ Deleted commitment from IndexedDB`, {
+        duration: `${duration.toFixed(2)}ms`
+      });
     } catch (dbError) {
-      console.warn('⚠️ IndexedDB delete failed:', dbError);
+      const duration = performance.now() - startTime;
+      debugLogger.warning('⚠️  IndexedDB delete failed (non-fatal)', {
+        error: dbError instanceof Error ? dbError.message : String(dbError),
+        duration: `${duration.toFixed(2)}ms`
+      });
     }
 
     // Delete from localStorage
+    debugLogger.step(2, 'Delete from localStorage');
     const localStorageKey = `commitment_${walletAddress}_${roomId}`;
+    const startTimeLS = performance.now();
     localStorage.removeItem(localStorageKey);
-    console.log(`✅ Deleted commitment from localStorage`);
+    const durationLS = performance.now() - startTimeLS;
+
+    debugLogger.success(`✅ Deleted commitment from localStorage`, {
+      key: localStorageKey,
+      duration: `${durationLS.toFixed(2)}ms`
+    });
+
+    debugLogger.flowSuccess('DELETE COMMITMENT', {
+      success: true,
+      deletedFrom: ['IndexedDB', 'localStorage'],
+      roomId
+    });
   } catch (error) {
-    console.error(`❌ Failed to delete commitment:`, error);
+    debugLogger.flowError('DELETE COMMITMENT', error, {
+      walletAddress: walletAddress.slice(0, 8) + '...',
+      roomId,
+      note: 'Deletion failure is non-fatal - game can continue'
+    });
     // Don't throw - deletion failure shouldn't block the game
   }
 }

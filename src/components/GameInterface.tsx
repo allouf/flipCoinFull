@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useFairCoinFlipper, CoinSide, GamePhase } from '../hooks/useFairCoinFlipper';
 import { useLobbyData } from '../hooks/useLobbyData';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletConnectButton } from './WalletConnectButton';
 import CoinFlipAnimation from './CoinFlipAnimation';
+import { WebSocketManager } from '../services/WebSocketManager';
 import '../styles/CoinFlipAnimation.css';
 
 // Sub-components
@@ -179,35 +181,84 @@ const GameResult: React.FC<{
 
   const isWinner = winner === 'You won!';
 
+  // Truncate long wallet addresses for display
+  const displayWinner = winner.length > 20
+    ? `${winner.slice(0, 8)}...${winner.slice(-8)}`
+    : winner;
+
   return (
-    <div className={`
-      p-6 rounded-lg border-2 text-center
-      ${isWinner ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}
-    `}>
-      <div className="text-4xl mb-4">
-        {coinResult === 'heads' ? '👑' : '⚡'}
-      </div>
-      <h3 className="text-xl font-bold mb-2">
-        Coin Result: {coinResult.toUpperCase()}
-      </h3>
-      <p className="text-lg mb-2">
-        Your Choice: {playerChoice?.toUpperCase()}
-      </p>
-      <div className={`text-2xl font-bold mb-4 ${isWinner ? 'text-green-600' : 'text-red-600'}`}>
-        {winner}
-      </div>
-      {winnerPayout && isWinner && (
-        <div className="space-y-1">
-          <p className="text-green-600 font-semibold">
-            Payout: {winnerPayout.toFixed(4)} SOL
-          </p>
-          {houseFee && (
-            <p className="text-gray-500 text-sm">
-              House Fee: {houseFee.toFixed(4)} SOL
-            </p>
-          )}
+    <div className="relative overflow-hidden">
+      {/* Celebration/Hard Luck Animation */}
+      {isWinner && (
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 left-1/4 text-4xl animate-bounce">🎉</div>
+          <div className="absolute top-0 right-1/4 text-4xl animate-bounce delay-100">🎊</div>
+          <div className="absolute bottom-0 left-1/3 text-4xl animate-bounce delay-200">✨</div>
+          <div className="absolute bottom-0 right-1/3 text-4xl animate-bounce delay-300">🏆</div>
         </div>
       )}
+
+      <div className={`
+        p-8 rounded-xl border-2 text-center relative
+        ${isWinner
+          ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300 shadow-lg'
+          : 'bg-gradient-to-br from-red-50 to-orange-50 border-red-300'}
+      `}>
+        {/* Result Icon */}
+        <div className={`text-7xl mb-4 ${isWinner ? 'animate-bounce' : ''}`}>
+          {isWinner ? '🏆' : '😔'}
+        </div>
+
+        {/* Main Result */}
+        <div className={`text-3xl font-bold mb-4 ${isWinner ? 'text-green-600' : 'text-red-600'}`}>
+          {isWinner ? '🎉 YOU WON! 🎉' : '😢 Hard Luck!'}
+        </div>
+
+        {/* Coin Result */}
+        <div className="bg-white/50 rounded-lg p-4 mb-4">
+          <div className="flex items-center justify-center gap-4">
+            <div>
+              <p className="text-sm text-gray-600">Coin Landed On</p>
+              <p className="text-2xl font-bold text-gray-800">
+                {coinResult === 'heads' ? '👑 HEADS' : '🪙 TAILS'}
+              </p>
+            </div>
+            <div className="text-3xl">vs</div>
+            <div>
+              <p className="text-sm text-gray-600">Your Choice</p>
+              <p className="text-2xl font-bold text-gray-800">
+                {playerChoice === 'heads' ? '👑 HEADS' : '🪙 TAILS'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Winner Details */}
+        <div className="space-y-2">
+          {winner !== 'You won!' && winner !== 'You lost!' && (
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-sm text-gray-600">Winner</p>
+              <p className="font-mono text-sm font-semibold text-gray-800 break-all">
+                {displayWinner}
+              </p>
+            </div>
+          )}
+
+          {/* Payout Info */}
+          {winnerPayout && isWinner && (
+            <div className="bg-green-100 rounded-lg p-4 border-2 border-green-300">
+              <p className="text-green-800 font-bold text-2xl mb-2">
+                +{winnerPayout.toFixed(4)} SOL
+              </p>
+              {houseFee && (
+                <p className="text-gray-600 text-xs">
+                  (House Fee: {houseFee.toFixed(4)} SOL)
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
@@ -253,10 +304,12 @@ const NotificationList: React.FC<{
 // Main Component
 interface GameInterfaceProps {
   gameId?: string;
+  isGameRoom?: boolean; // When true, hides create/join sections
 }
 
-export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
+export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom = false }) => {
   const { connected } = useWallet();
+  const navigate = useNavigate();
   const fairCoinFlipperResult = useFairCoinFlipper();
   const { allRooms } = useLobbyData();
 
@@ -281,6 +334,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
     fetchGameData,
     loadGameByPda,
     rejoinExistingGame,
+    makeChoice,
   } = fairCoinFlipperResult;
 
   // DEBUG: Log current game state
@@ -290,6 +344,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
     playerChoice: gameState.playerChoice,
     blockchainStatus: gameState.blockchainStatus,
     isLoading: gameState.isLoading,
+    error: gameState.error,
   });
 
   // Local UI state
@@ -306,10 +361,26 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
   const [isRevealing, setIsRevealing] = useState(false);
   const [revealResult, setRevealResult] = useState<CoinSide | null>(null);
 
+  // Track if we've already loaded this game
+  const [hasLoadedThisGame, setHasLoadedThisGame] = useState(false);
+  const [currentLoadedGameId, setCurrentLoadedGameId] = useState<string | null>(null);
+
   // Load specific game data when gameId is provided
   useEffect(() => {
-    // Only search if we have gameId AND allRooms is populated
-    if (gameId && allRooms && allRooms.length > 0) {
+    // Reset if game ID changed
+    if (gameId !== currentLoadedGameId) {
+      setHasLoadedThisGame(false);
+      setCurrentLoadedGameId(gameId || null);
+    }
+
+    // Check if we should load/refresh the game data
+    // Always refresh if we're waiting for a player or if we haven't loaded yet
+    const shouldRefresh = gameId && allRooms && allRooms.length > 0 &&
+                         (!hasLoadedThisGame ||
+                          (specificGameData?.status === 'waitingForPlayer' ||
+                           specificGameData?.status === 'WaitingForPlayer'));
+
+    if (shouldRefresh) {
       console.log('🔍 Looking for game in allRooms with ID:', gameId, 'Available rooms:', allRooms.length);
       setLoadingGameData(true);
 
@@ -326,9 +397,10 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
         const betAmountSol = foundGame.betAmount ? (foundGame.betAmount.toNumber() / 1e9) : 0;
         const houseFeeSOL = foundGame.houseFee ? (foundGame.houseFee.toNumber() / 1e9) : 0;
 
+        const currentStatus = foundGame.status ? Object.keys(foundGame.status)[0] : 'unknown';
         const formattedGameData = {
           gameId: foundGame.gameId?.toString() || '',
-          status: foundGame.status ? Object.keys(foundGame.status)[0] : 'unknown',
+          status: currentStatus,
           betAmount: betAmountSol, // Convert lamports to SOL
           playerA: foundGame.playerA?.toString() || '',
           playerB: foundGame.playerB?.toString() || '',
@@ -337,25 +409,51 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
           // Calculate winner payout: 2x bet minus house fee
           winnerPayout: foundGame.winner ? (betAmountSol * 2 - houseFeeSOL) : null,
         };
+
+        // Check if status changed from waiting to ready
+        const wasWaiting = specificGameData?.status === 'waitingForPlayer' ||
+                          specificGameData?.status === 'WaitingForPlayer';
+        const isNowReady = currentStatus === 'playersReady' || currentStatus === 'PlayersReady';
+
+        if (wasWaiting && isNowReady) {
+          console.log('🎮 Game status changed! Both players are now ready!');
+          // Reset to allow rejoin logic to trigger
+          setHasLoadedThisGame(false);
+        }
+
         setSpecificGameData(formattedGameData);
 
-        // Update game state based on blockchain status
-        if (foundGame.status) {
-          if ('commitmentsReady' in foundGame.status) {
-            console.log('🎯 Game has commitments ready - rejoining game to set revealing phase');
-            // gameId is already a decimal string, just parse it as base 10
+        // Only mark as loaded if we're not waiting for players
+        if (currentStatus !== 'waitingForPlayer' && currentStatus !== 'WaitingForPlayer') {
+          setHasLoadedThisGame(true);
+        }
+
+        // Only rejoin game once, not on every render
+        if (foundGame.status && gameState.gameId !== parseInt(gameId)) {
+          if ('playersReady' in foundGame.status || 'PlayersReady' in foundGame.status) {
+            console.log('🎯 Both players ready - rejoining game');
             const numericGameId = parseInt(gameId, 10);
-            console.log('🔢 Calling rejoinExistingGame with:', numericGameId);
             rejoinExistingGame(numericGameId);
-          } else if ('resolved' in foundGame.status) {
-            console.log('🎯 Game is resolved, showing results');
-          } else if ('waitingForPlayer' in foundGame.status) {
-            console.log('🎯 Game is waiting for player - loading game for join option');
-            // gameId is already a decimal string, just parse it as base 10
+          } else if ('commitmentsReady' in foundGame.status) {
+            console.log('🎯 Game has commitments ready - need to rejoin');
             const numericGameId = parseInt(gameId, 10);
-            console.log('🔢 Calling rejoinExistingGame with:', numericGameId);
+            rejoinExistingGame(numericGameId);
+          } else if ('waitingForPlayer' in foundGame.status) {
+            console.log('🎯 Game is waiting for player - need to rejoin');
+            const numericGameId = parseInt(gameId, 10);
             rejoinExistingGame(numericGameId);
           }
+        }
+
+        // Subscribe to room updates for this game (with connection check)
+        const wsManager = WebSocketManager.getInstance();
+        const connectionStatus = wsManager.getConnectionStatus();
+
+        if (connectionStatus.connected) {
+          wsManager.subscribeToRoom(gameId);
+        } else {
+          console.log('⏳ WebSocket not connected yet, will subscribe when connected');
+          // Will be handled by the useEffect that listens for connection status
         }
       } else {
         console.log('❌ Game not found in allRooms');
@@ -364,7 +462,61 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
 
       setLoadingGameData(false);
     }
-  }, [gameId, allRooms]);
+  }, [gameId, allRooms, hasLoadedThisGame, currentLoadedGameId, gameState.gameId, specificGameData?.status]);
+
+  // Clean up WebSocket subscription when component unmounts or gameId changes
+  useEffect(() => {
+    if (!gameId) return;
+
+    const wsManager = WebSocketManager.getInstance();
+    let isSubscribed = false;
+
+    // Function to handle subscription
+    const handleSubscribe = () => {
+      const status = wsManager.getConnectionStatus();
+      if (status.connected && !isSubscribed) {
+        wsManager.subscribeToRoom(gameId);
+        isSubscribed = true;
+        console.log('✅ Subscribed to room after connection:', gameId);
+      }
+    };
+
+    // Check if WebSocket is connected, if not try to connect
+    const connectionStatus = wsManager.getConnectionStatus();
+    if (!connectionStatus.connected && !connectionStatus.reconnecting) {
+      console.log('🔌 WebSocket not connected, attempting to connect...');
+      wsManager.connect().then(() => {
+        handleSubscribe();
+      }).catch(err => {
+        console.warn('WebSocket connection failed:', err);
+        // Continue without WebSocket - game still works through blockchain polling
+      });
+    } else if (connectionStatus.connected) {
+      // Already connected, subscribe immediately
+      handleSubscribe();
+    }
+
+    // Listen for connection status changes to re-subscribe after reconnection
+    const handleConnectionStatus = (status: any) => {
+      if (status.connected && !isSubscribed) {
+        console.log('🔄 WebSocket reconnected, re-subscribing to room:', gameId);
+        handleSubscribe();
+      } else if (!status.connected && isSubscribed) {
+        console.log('🔌 WebSocket disconnected, will re-subscribe when reconnected');
+        isSubscribed = false;
+      }
+    };
+
+    wsManager.on('connectionStatus', handleConnectionStatus);
+
+    // Cleanup function
+    return () => {
+      if (isSubscribed) {
+        wsManager.unsubscribeFromRoom(gameId);
+      }
+      wsManager.off('connectionStatus', handleConnectionStatus);
+    };
+  }, [gameId]);
 
   // Reset local state when game resets
   useEffect(() => {
@@ -391,6 +543,15 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
     const success = await joinExistingGame(gameId);
     if (success) {
       console.log('Joined game successfully');
+    }
+  };
+
+  const handleMakeCommitment = async () => {
+    if (!selectedChoice) return;
+    console.log('🔐 Making commitment with choice:', selectedChoice);
+    const success = await makeChoice(selectedChoice);
+    if (success) {
+      console.log('✅ Commitment successful!');
     }
   };
 
@@ -571,69 +732,68 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Game Controls */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Choice Selection */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              {gameState.phase === 'revealing' ? 'Your Committed Choice' : 'Choose Your Side'}
-            </h3>
-            <div className="flex justify-center space-x-8">
-              <CoinChoice
-                side="heads"
-                selected={gameState.phase === 'revealing' ? gameState.playerChoice === 'heads' : selectedChoice === 'heads'}
-                disabled={gameState.phase !== 'idle' && gameState.phase !== 'waiting'}
-                onClick={() => {
-                  console.log('🟡 HEADS BUTTON CLICKED!', {
-                    phase: gameState.phase,
-                    playerChoice: gameState.playerChoice,
-                    selectedChoice: selectedChoice,
-                    disabled: gameState.phase !== 'idle' && gameState.phase !== 'waiting'
-                  });
-                  if (gameState.phase === 'revealing') {
-                    console.log('❌ HEADS BUTTON CLICKED DURING REVEAL - THIS SHOULD NOT HAPPEN!');
-                    return;
-                  }
-                  setSelectedChoice('heads');
-                }}
-              />
-              <CoinChoice
-                side="tails"
-                selected={gameState.phase === 'revealing' ? gameState.playerChoice === 'tails' : selectedChoice === 'tails'}
-                disabled={gameState.phase !== 'idle' && gameState.phase !== 'waiting'}
-                onClick={() => {
-                  console.log('🟡 TAILS BUTTON CLICKED!', {
-                    phase: gameState.phase,
-                    playerChoice: gameState.playerChoice,
-                    selectedChoice: selectedChoice,
-                    disabled: gameState.phase !== 'idle' && gameState.phase !== 'waiting'
-                  });
-                  if (gameState.phase === 'revealing') {
-                    console.log('❌ TAILS BUTTON CLICKED DURING REVEAL - THIS SHOULD NOT HAPPEN!');
-                    return;
-                  }
-                  setSelectedChoice('tails');
-                }}
-              />
-            </div>
-            {gameState.phase === 'revealing' && (
-              <div className="mt-4 text-center">
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
-                  <p className="text-sm text-yellow-800 font-medium">
-                    ⚠️ <strong>Do NOT click the coin buttons above!</strong>
-                  </p>
-                  <p className="text-xs text-yellow-700 mt-1">
-                    They are just showing your committed choice. You cannot change it.
-                  </p>
-                </div>
-                <p className="text-sm text-gray-600">
-                  Your choice is locked in. Click "🎲 Flip Coin & Reveal" below to complete the game.
-                </p>
+          {/* Choice Selection - Only show during idle, waiting, and revealing phases */}
+          {(gameState.phase === 'idle' || gameState.phase === 'waiting' || gameState.phase === 'revealing') && (
+            <div className="bg-white rounded-lg p-6 shadow-md">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                {gameState.phase === 'revealing' ? 'Your Committed Choice' : 'Choose Your Side'}
+              </h3>
+              <div className="flex justify-center space-x-8">
+                <CoinChoice
+                  side="heads"
+                  selected={gameState.phase === 'revealing' ? gameState.playerChoice === 'heads' : selectedChoice === 'heads'}
+                  disabled={gameState.phase !== 'idle'}
+                  onClick={() => {
+                    console.log('🟡 HEADS BUTTON CLICKED!', {
+                      phase: gameState.phase,
+                      playerChoice: gameState.playerChoice,
+                      selectedChoice: selectedChoice,
+                      disabled: gameState.phase !== 'idle'
+                    });
+                    if (gameState.phase === 'revealing') {
+                      console.log('❌ HEADS BUTTON CLICKED DURING REVEAL - THIS SHOULD NOT HAPPEN!');
+                      return;
+                    }
+                    setSelectedChoice('heads');
+                  }}
+                />
+                <CoinChoice
+                  side="tails"
+                  selected={gameState.phase === 'revealing' ? gameState.playerChoice === 'tails' : selectedChoice === 'tails'}
+                  disabled={gameState.phase !== 'idle'}
+                  onClick={() => {
+                    console.log('🟡 TAILS BUTTON CLICKED!', {
+                      phase: gameState.phase,
+                      playerChoice: gameState.playerChoice,
+                      selectedChoice: selectedChoice,
+                      disabled: gameState.phase !== 'idle'
+                    });
+                    if (gameState.phase === 'revealing') {
+                      console.log('❌ TAILS BUTTON CLICKED DURING REVEAL - THIS SHOULD NOT HAPPEN!');
+                      return;
+                    }
+                    setSelectedChoice('tails');
+                  }}
+                />
               </div>
-            )}
-          </div>
+              {gameState.phase === 'revealing' && (
+                <div className="mt-4 text-center">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                    <p className="text-sm text-green-800 font-medium">
+                      ✅ Your choice is locked: {gameState.playerChoice?.toUpperCase() || 'Loading...'}
+                    </p>
+                    <p className="text-xs text-green-700 mt-1">
+                      Ready to reveal and see who wins!
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Game Actions */}
           <div className="bg-white rounded-lg p-6 shadow-md space-y-6">
-            {gameState.phase === 'idle' && (
+            {gameState.phase === 'idle' && !isGameRoom && (
               <>
                 {/* Create Game */}
                 <div>
@@ -707,7 +867,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
                 </div>
                 <button
                   onClick={() => {
-                    const url = `${window.location.origin}?gameId=${gameState.gameId}`;
+                    const url = `${window.location.origin}/game/${gameState.gameId}`;
                     navigator.clipboard.writeText(url);
                     // Simple notification (can be improved with toast)
                     alert('Game link copied to clipboard!');
@@ -719,32 +879,226 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
               </div>
             )}
 
-{gameState.phase === 'revealing' && (
-              <div className="text-center">
-                {!showCoinFlip ? (
-                  <>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                      {gameState.isPlayerRevealed ? 'Waiting for Other Player' : 'Time to Reveal!'}
-                    </h3>
-                    <p className="text-gray-600 mb-6">
-                      {gameState.isPlayerRevealed
-                        ? "Please wait while the other player reveals their choice..."
-                        : "Both players have committed. Click reveal to see the results!"}
-                    </p>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                      <p className="text-sm text-blue-700">
-                        🔒 <strong>Your committed choice:</strong> {gameState.playerChoice?.toUpperCase()}
-                        <br />
-                        You cannot change this - it was cryptographically locked when you joined.
+            {gameState.phase === 'committing' && (
+              <div className="space-y-6">
+                {/* Countdown Timer */}
+                <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg p-6 text-white">
+                  <div className="text-center">
+                    <h3 className="text-2xl font-bold mb-2">⏰ Make Your Commitment!</h3>
+                    <div className="text-4xl font-mono font-bold mb-2">
+                      {gameState.timeRemaining ? Math.floor(gameState.timeRemaining / 60) : '5'}:{gameState.timeRemaining ? String(gameState.timeRemaining % 60).padStart(2, '0') : '00'}
+                    </div>
+                    <p className="text-sm opacity-90">Time remaining to commit your choice</p>
+                  </div>
+                </div>
+
+                {/* Critical Error Warning */}
+                {gameState.error && (
+                  <div className="bg-red-100 border-2 border-red-400 rounded-lg p-6">
+                    <div className="flex items-start gap-3">
+                      <div className="text-3xl">⚠️</div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-red-800 text-lg mb-2">Critical Error</h4>
+                        <p className="text-red-700">{gameState.error}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Game Status */}
+                <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-purple-200">
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="text-center flex-1">
+                      <p className="text-sm text-gray-600 mb-1">Player 1</p>
+                      <div className="flex items-center justify-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${gameState.playerRole === 'creator' ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                        <span className="font-medium">{gameState.playerRole === 'creator' ? 'You' : 'Opponent'}</span>
+                      </div>
+                      <p className="text-xs mt-1 text-gray-500">
+                        {gameState.playerChoice && gameState.playerRole === 'creator' ? '✅ Committed' : '⏳ Waiting'}
                       </p>
                     </div>
-                    <button
-                      onClick={handleRevealChoice}
-                      disabled={gameState.isLoading || isRevealing}
-                      className="px-8 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold rounded-lg hover:from-orange-600 hover:to-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    >
-                      {gameState.isLoading || isRevealing ? 'Revealing...' : '🎲 Reveal Results'}
-                    </button>
+                    <div className="text-2xl">⚔️</div>
+                    <div className="text-center flex-1">
+                      <p className="text-sm text-gray-600 mb-1">Player 2</p>
+                      <div className="flex items-center justify-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${gameState.playerRole === 'joiner' ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                        <span className="font-medium">{gameState.playerRole === 'joiner' ? 'You' : 'Opponent'}</span>
+                      </div>
+                      <p className="text-xs mt-1 text-gray-500">
+                        {gameState.playerChoice && gameState.playerRole === 'joiner' ? '✅ Committed' : '⏳ Waiting'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="mt-4">
+                    <div className="flex justify-between text-xs text-gray-600 mb-1">
+                      <span>Commitments</span>
+                      <span>{gameState.playerChoice ? '1/2' : '0/2'}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: gameState.playerChoice ? '50%' : '0%' }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Choice Selection */}
+                <div className="bg-white rounded-lg p-6 border-2 border-gray-200">
+                  <h3 className="text-xl font-bold text-center mb-6 text-gray-800">
+                    {gameState.playerChoice ? '✅ Your Choice is Locked!' : '🎯 Choose Your Side'}
+                  </h3>
+
+                  {!gameState.playerChoice ? (
+                    <>
+                      <div className="flex justify-center gap-8 mb-6">
+                        <button
+                          onClick={() => setSelectedChoice('heads')}
+                          className={`group relative p-6 rounded-xl transition-all transform hover:scale-105 ${
+                            selectedChoice === 'heads'
+                              ? 'bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg scale-105'
+                              : 'bg-gray-100 hover:bg-gray-200'
+                          }`}
+                        >
+                          <div className="text-5xl mb-2">👑</div>
+                          <p className={`font-bold ${selectedChoice === 'heads' ? 'text-white' : 'text-gray-700'}`}>HEADS</p>
+                        </button>
+
+                        <button
+                          onClick={() => setSelectedChoice('tails')}
+                          className={`group relative p-6 rounded-xl transition-all transform hover:scale-105 ${
+                            selectedChoice === 'tails'
+                              ? 'bg-gradient-to-br from-blue-400 to-purple-500 shadow-lg scale-105'
+                              : 'bg-gray-100 hover:bg-gray-200'
+                          }`}
+                        >
+                          <div className="text-5xl mb-2">🪙</div>
+                          <p className={`font-bold ${selectedChoice === 'tails' ? 'text-white' : 'text-gray-700'}`}>TAILS</p>
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={handleMakeCommitment}
+                        disabled={gameState.isLoading || !selectedChoice || !!gameState.error}
+                        className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-lg rounded-lg hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02]"
+                      >
+                        {gameState.isLoading ? (
+                          <span className="flex items-center justify-center">
+                            <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></span>
+                            Committing...
+                          </span>
+                        ) : gameState.error ? (
+                          '❌ Cannot Commit (See Error Below)'
+                        ) : (
+                          '🔐 Lock In My Choice'
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="text-center">
+                      <div className="inline-block p-8 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 text-white mb-4">
+                        <div className="text-6xl">
+                          {gameState.playerChoice === 'heads' ? '👑' : '🪙'}
+                        </div>
+                      </div>
+                      <p className="text-2xl font-bold text-gray-800 mb-2">
+                        {gameState.playerChoice?.toUpperCase()} Locked!
+                      </p>
+                      <p className="text-gray-600">
+                        Your choice has been cryptographically secured. Waiting for opponent...
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+{gameState.phase === 'revealing' && (
+              <div className="space-y-6">
+                {!showCoinFlip ? (
+                  <>
+                    {/* Reveal Phase Header */}
+                    <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-lg p-6 text-white">
+                      <h3 className="text-2xl font-bold mb-2 text-center">
+                        🎲 {gameState.isPlayerRevealed ? 'Waiting for Opponent' : 'Time to Reveal!'}
+                      </h3>
+                      <p className="text-center opacity-90">
+                        {gameState.isPlayerRevealed
+                          ? "You've revealed! Waiting for your opponent..."
+                          : "Both players have committed. Time to see who wins!"}
+                      </p>
+                    </div>
+
+                    {/* Player Status */}
+                    <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-purple-200">
+                      <div className="flex justify-between items-center">
+                        <div className="text-center flex-1">
+                          <p className="text-sm text-gray-600 mb-1">You</p>
+                          <div className={`inline-block p-4 rounded-full mb-2 ${
+                            gameState.playerChoice === 'heads'
+                              ? 'bg-gradient-to-br from-yellow-400 to-orange-500'
+                              : 'bg-gradient-to-br from-blue-400 to-purple-500'
+                          }`}>
+                            <div className="text-3xl text-white">
+                              {gameState.playerChoice === 'heads' ? '👑' : '🪙'}
+                            </div>
+                          </div>
+                          <p className="font-bold text-lg">{gameState.playerChoice?.toUpperCase() || 'Loading...'}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {gameState.isPlayerRevealed ? '✅ Revealed' : '🔐 Committed'}
+                          </p>
+                        </div>
+
+                        <div className="text-3xl">⚔️</div>
+
+                        <div className="text-center flex-1">
+                          <p className="text-sm text-gray-600 mb-1">Opponent</p>
+                          <div className="inline-block p-4 rounded-full mb-2 bg-gray-200">
+                            <div className="text-3xl">❓</div>
+                          </div>
+                          <p className="font-bold text-lg">HIDDEN</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {gameState.opponentRevealed ? '✅ Revealed' : '🔐 Committed'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <div className="text-center">
+                      {!gameState.isPlayerRevealed ? (
+                        <>
+                          <button
+                            onClick={handleRevealChoice}
+                            disabled={gameState.isLoading || isRevealing}
+                            className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-lg rounded-lg hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02]"
+                          >
+                            {gameState.isLoading || isRevealing ? (
+                              <span className="flex items-center justify-center">
+                                <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></span>
+                                Revealing...
+                              </span>
+                            ) : (
+                              '🎯 Reveal My Choice'
+                            )}
+                          </button>
+                          <p className="text-sm text-gray-600 mt-2">
+                            This will send your choice to the blockchain for final resolution
+                          </p>
+                        </>
+                      ) : (
+                        <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6">
+                          <div className="animate-pulse text-4xl mb-3">⏳</div>
+                          <p className="text-lg font-semibold text-green-800">You've Revealed!</p>
+                          <p className="text-sm text-green-700 mt-1">
+                            Waiting for your opponent to reveal their choice...
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </>
                 ) : (
                   /* Show the coin flip animation */
@@ -777,12 +1131,22 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
                   houseFee={gameState.houseFee}
                   playerChoice={gameState.playerChoice}
                 />
-                <button
-                  onClick={resetGame}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white font-semibold rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200"
-                >
-                  Play Again
-                </button>
+                <div className="flex gap-3">
+                  {isGameRoom && (
+                    <button
+                      onClick={() => navigate('/lobby')}
+                      className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200"
+                    >
+                      ← Back to Lobby
+                    </button>
+                  )}
+                  <button
+                    onClick={resetGame}
+                    className={`${isGameRoom ? 'flex-1' : 'w-full'} px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-200`}
+                  >
+                    🎮 Play Again
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -825,19 +1189,91 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId }) => {
             </div>
           )}
 
-          {/* How to Play */}
-          <div className="bg-gray-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              How to Play
-            </h3>
-            <ol className="text-sm text-gray-600 space-y-2">
-              <li>1. Choose heads or tails</li>
-              <li>2. Create a game or join existing one</li>
-              <li>3. Wait for opponent to join</li>
-              <li>4. Reveal your choice when ready</li>
-              <li>5. See the results and collect winnings!</li>
-            </ol>
-          </div>
+          {/* Game-specific info based on phase */}
+          {gameState.phase === 'idle' ? (
+            <div className="bg-gray-50 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                How to Play
+              </h3>
+              <ol className="text-sm text-gray-600 space-y-2">
+                <li>1. Choose heads or tails</li>
+                <li>2. Create a game or join existing one</li>
+                <li>3. Wait for opponent to join</li>
+                <li>4. Reveal your choice when ready</li>
+                <li>5. See the results and collect winnings!</li>
+              </ol>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Active Game Details */}
+              <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg p-6 border-2 border-purple-200">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">
+                  Game #{gameState.gameId}
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Bet Amount:</span>
+                    <span className="font-bold text-lg">{gameState.betAmount} SOL</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Total Pot:</span>
+                    <span className="font-bold text-lg text-green-600">
+                      {(gameState.betAmount * 2).toFixed(2)} SOL
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Winner Gets:</span>
+                    <span className="font-bold text-purple-600">
+                      {(gameState.betAmount * 2 * 0.93).toFixed(3)} SOL
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">House Fee:</span>
+                    <span className="text-sm">7%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Phase-specific status */}
+              <div className="bg-white rounded-lg p-4 border-2 border-gray-200">
+                <h4 className="font-bold text-gray-800 mb-2">Current Status</h4>
+                <div className="text-sm text-gray-600">
+                  {gameState.phase === 'waiting' && (
+                    <div>
+                      <p className="text-yellow-600 font-medium">⏳ Waiting for opponent to join</p>
+                      <p className="mt-1">Share your game ID to invite players</p>
+                    </div>
+                  )}
+                  {gameState.phase === 'committing' && (
+                    <div>
+                      <p className="text-purple-600 font-medium">🔐 Commitment Phase</p>
+                      <p className="mt-1">Both players must lock in their choices</p>
+                      {gameState.playerChoice && (
+                        <p className="text-green-600 mt-1">✅ Your choice is locked</p>
+                      )}
+                    </div>
+                  )}
+                  {gameState.phase === 'revealing' && (
+                    <div>
+                      <p className="text-orange-600 font-medium">🎲 Reveal Phase</p>
+                      <p className="mt-1">Time to reveal choices and determine winner</p>
+                      {gameState.isPlayerRevealed && (
+                        <p className="text-green-600 mt-1">✅ You have revealed</p>
+                      )}
+                    </div>
+                  )}
+                  {gameState.phase === 'resolved' && (
+                    <div>
+                      <p className="text-blue-600 font-medium">🏆 Game Complete</p>
+                      <p className="mt-1">
+                        {gameState.winner === 'you' ? '🎉 Congratulations! You won!' : '😔 Better luck next time!'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

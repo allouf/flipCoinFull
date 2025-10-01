@@ -4,29 +4,44 @@ require('dotenv').config();
 // Neon Database connection
 // You need to set DATABASE_URL in your .env file
 // Format: postgres://username:password@ep-xxx.us-east-2.aws.neon.tech/dbname?sslmode=require
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Required for Neon
-  },
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 1000, // Fail fast if database is unreachable
-  statement_timeout: 1000,
-});
 
-// Test database connection
-pool.on('connect', () => {
-  console.log('✅ Connected to Neon PostgreSQL database');
-});
+// Skip PostgreSQL if DATABASE_URL is not set (use SQLite fallback)
+let pool = null;
 
-pool.on('error', (err) => {
-  console.error('❌ Unexpected database error:', err);
-  process.exit(-1);
-});
+if (process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('#')) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false // Required for Neon
+    },
+    max: 20, // Maximum number of clients in the pool
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 20000, // Increased timeout for slow networks
+    statement_timeout: 10000, // Increased statement timeout
+  });
+} else {
+  console.log('📊 DATABASE_URL not configured, will use SQLite fallback');
+}
+
+// Test database connection (only if pool exists)
+if (pool) {
+  pool.on('connect', () => {
+    console.log('✅ Connected to Neon PostgreSQL database');
+  });
+
+  pool.on('error', (err) => {
+    console.error('❌ Unexpected database error:', err);
+    // Don't exit - will fall back to SQLite
+    console.log('⚠️  PostgreSQL error, will use SQLite fallback');
+  });
+}
 
 // Helper function to execute queries
 async function query(text, params) {
+  if (!pool) {
+    throw new Error('PostgreSQL not configured - use SQLite fallback');
+  }
+
   const start = Date.now();
   try {
     const res = await pool.query(text, params);
@@ -41,6 +56,10 @@ async function query(text, params) {
 
 // Initialize database tables
 async function initializeDatabase() {
+  if (!pool) {
+    throw new Error('PostgreSQL not configured - use SQLite fallback');
+  }
+
   try {
     // Check if tables exist
     const tableCheck = await query(`

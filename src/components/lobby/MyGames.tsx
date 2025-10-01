@@ -169,6 +169,14 @@ export const MyGames: React.FC<MyGamesProps> = ({ myGames, loading }) => {
                   {game.status === 'waiting' && game.role === 'creator' && (
                     <>
                       <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => navigate(`/game/${game.id}`)}
+                        title="Enter the game room"
+                      >
+                        <Play className="w-3 h-3" />
+                        Enter Game
+                      </button>
+                      <button
                         className="btn btn-sm btn-primary btn-outline"
                         onClick={() => {
                           const gameUrl = `${window.location.origin}/game/${game.id}`;

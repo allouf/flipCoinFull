@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useAnchorProgram } from './useAnchorProgram';
 import type { GameRoom } from './useAnchorProgram';
+import { WebSocketManager } from '../services/WebSocketManager';
 
 export interface AvailableGameData {
   id: string;
@@ -117,15 +118,51 @@ export const useLobbyData = () => {
     }
   }, [isProgramReady, refreshData]);
 
-  // Auto-refresh every 30 seconds for background updates
+  // Listen for WebSocket events instead of polling
   useEffect(() => {
     if (!isProgramReady) return;
 
-    const interval = setInterval(() => {
-      refreshData(false);
-    }, 30000); // 30 seconds
+    const wsManager = WebSocketManager.getInstance();
 
-    return () => clearInterval(interval);
+    // Check connection and attempt to connect if needed
+    const connectionStatus = wsManager.getConnectionStatus();
+    if (!connectionStatus.connected && !connectionStatus.reconnecting) {
+      console.log('🔌 WebSocket not connected, attempting to connect for lobby updates...');
+      wsManager.connect().catch(err => {
+        console.warn('WebSocket connection failed, falling back to manual refresh:', err);
+      });
+    }
+
+    // Event handler for when a player joins a game
+    const handlePlayerJoined = (event: any) => {
+      console.log('🎮 Player joined event received:', event);
+      // Refresh game data when a player joins
+      refreshData(false);
+    };
+
+    // Event handler for game state changes
+    const handleGameStateChange = (event: any) => {
+      console.log('🔄 Game state changed:', event);
+      refreshData(false);
+    };
+
+    // Subscribe to relevant events
+    wsManager.on('player_joined', handlePlayerJoined);
+    wsManager.on('game_state_changed', handleGameStateChange);
+    wsManager.on('room_created', handleGameStateChange);
+    wsManager.on('game_resolved', handleGameStateChange);
+    wsManager.on('commitment_made', handleGameStateChange);
+    wsManager.on('choice_revealed', handleGameStateChange);
+
+    return () => {
+      // Cleanup event listeners
+      wsManager.off('player_joined', handlePlayerJoined);
+      wsManager.off('game_state_changed', handleGameStateChange);
+      wsManager.off('room_created', handleGameStateChange);
+      wsManager.off('game_resolved', handleGameStateChange);
+      wsManager.off('commitment_made', handleGameStateChange);
+      wsManager.off('choice_revealed', handleGameStateChange);
+    };
   }, [isProgramReady, refreshData]);
 
   // Transform data into different views

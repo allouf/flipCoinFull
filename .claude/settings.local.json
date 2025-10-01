@@ -103,7 +103,10 @@
       "Bash(PORT=3004 npm start)",
       "Bash(PORT=3005 npm start)",
       "Bash(PORT=3010 npm start)",
-      "Bash(PORT=4000 node server.js)"
+      "Bash(PORT=4000 node server.js)",
+      "Bash(PORT=3011 npm start)",
+      "Read(//f/**)",
+      "Bash(/bashes)"
     ],
     "deny": [],
     "ask": []

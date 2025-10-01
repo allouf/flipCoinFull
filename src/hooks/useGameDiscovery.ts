@@ -322,7 +322,7 @@ export const useGameDiscovery = () => {
   // Generate shareable URL for a game
   const generateGameShareUrl = useCallback((gameId: number, gamePda: string) => {
     const baseUrl = window.location.origin;
-    return `${baseUrl}?game=${gamePda}&gameId=${gameId}`;
+    return `${baseUrl}/game/${gameId}`;
   }, []);
 
   return {

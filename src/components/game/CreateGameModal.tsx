@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Coins } from 'lucide-react';
 import { BET_PRESETS, MIN_BET_SOL, MAX_BET_SOL } from '../../config/constants';
 import { useFairCoinFlipper } from '../../hooks/useFairCoinFlipper';
@@ -13,6 +14,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({ onClose, onGam
   const [customAmount, setCustomAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const fairCoinFlipperResult = useFairCoinFlipper();
+  const navigate = useNavigate();
 
   const handlePresetClick = (amount: number) => {
     setBetAmount(amount);
@@ -40,12 +42,14 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({ onClose, onGam
     setLoading(true);
     try {
       const { createGame } = fairCoinFlipperResult;
-      const success = await createGame(betAmount);
+      const gameId = await createGame(betAmount);
 
-      if (success) {
-        console.log('✅ Game created successfully with bet amount:', betAmount);
+      if (gameId) {
+        console.log('✅ Game created successfully with bet amount:', betAmount, 'gameId:', gameId);
         onClose();
         onGameCreated?.(); // Notify parent to refresh data
+        // Navigate to the game board
+        navigate(`/game/${gameId}`);
       } else {
         console.error('❌ Failed to create game');
       }

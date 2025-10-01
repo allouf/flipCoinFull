@@ -95,52 +95,27 @@ export const Navigation: React.FC = () => {
       </div>
 
       {/* Right Side - Network & Wallet */}
-      <div className="navbar-end gap-3">
-        {/* Network & Status Container */}
-        <div className="flex items-center gap-2">
+      <div className="navbar-end gap-4">
+        {/* Network Selector */}
+        <div className="hidden md:block">
           <NetworkSelector />
-
-          {/* Connection Status Indicator */}
-          <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-base-200/50">
-            <div
-              className={`w-2 h-2 rounded-full animate-pulse ${
-                connected ? 'bg-success' : 'bg-error'
-              }`}
-            />
-            <span className="text-xs font-medium text-base-content/80 hidden sm:inline">
-              {connected ? 'Live' : 'Offline'}
-            </span>
-          </div>
         </div>
 
-        {/* Wallet Info & Balance */}
-        {connected && publicKey && (
-          <div className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-primary" />
-              <div className="text-right">
-                <div className="text-xs text-base-content/60 leading-tight">Balance</div>
-                <div className="text-sm font-bold font-mono leading-tight">
-                  {balance !== null ? `${balance.toFixed(4)} SOL` : '-.---- SOL'}
-                </div>
-              </div>
-            </div>
-
-            <div className="w-px h-8 bg-base-300/50"></div>
-
-            <div className="text-right">
-              <div className="text-xs text-base-content/60 leading-tight">Wallet</div>
-              <div className="text-sm font-mono leading-tight">
-                {`${publicKey.toString().slice(0, 4)}...${publicKey.toString().slice(-4)}`}
+        {/* Wallet Balance (Only when connected) */}
+        {connected && balance !== null && (
+          <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-success/10 to-primary/10 border border-success/20 rounded-lg shadow-sm">
+            <Wallet className="w-4 h-4 text-success" />
+            <div>
+              <div className="text-xs text-base-content/60 leading-tight">Balance</div>
+              <div className="text-sm font-bold font-mono leading-tight text-success">
+                {balance.toFixed(4)} SOL
               </div>
             </div>
           </div>
         )}
 
         {/* Wallet Connect Button */}
-        <div className="flex items-center">
-          <WalletMultiButton className="!btn !btn-primary !btn-sm !rounded-lg !font-medium !px-4" />
-        </div>
+        <WalletMultiButton className="!btn !btn-primary !rounded-lg !font-semibold !px-6 !shadow-md !hover:shadow-lg !transition-all" />
 
         {/* Mobile Menu */}
         <div className="dropdown dropdown-end lg:hidden ml-2">

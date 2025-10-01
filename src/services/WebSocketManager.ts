@@ -1,6 +1,7 @@
 import { EventEmitter } from 'eventemitter3';
 import { io, Socket } from 'socket.io-client';
 import { WEBSOCKET_CONFIG } from '../config/constants';
+import { debugLogger } from '../utils/debugLogger';
 
 export interface GameEvent {
   type: 'room_created' | 'player_joined' | 'selection_made' | 'game_resolved' | 'player_disconnected';
@@ -69,17 +70,35 @@ export class WebSocketManager extends EventEmitter {
   public async connect(serverUrl?: string, walletAddress?: string): Promise<void> {
     const url = serverUrl || WEBSOCKET_CONFIG.SERVER_URL;
 
+    debugLogger.flowStart('WEBSOCKET CONNECT', {
+      serverUrl: url,
+      walletAddress: walletAddress ? walletAddress.slice(0, 8) + '...' : 'None',
+      timeout: `${WEBSOCKET_CONFIG.CONNECTION_TIMEOUT}ms`,
+      reconnection: 'Manual (disabled auto-reconnect)'
+    });
+
     try {
+      debugLogger.step(1, 'Initialize Socket.IO Client', {
+        url,
+        transports: ['websocket'],
+        timeout: WEBSOCKET_CONFIG.CONNECTION_TIMEOUT
+      });
+
       this.socket = io(url, {
         transports: ['websocket'],
         timeout: WEBSOCKET_CONFIG.CONNECTION_TIMEOUT,
-        reconnection: false, // We handle reconnection manually
+        reconnection: true, // Enable automatic reconnection
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
       });
 
+      debugLogger.step(2, 'Setup Event Handlers');
       this.setupEventHandlers();
 
       return await new Promise((resolve, reject) => {
         if (!this.socket) {
+          debugLogger.error('Socket not initialized');
           reject(new Error('Socket not initialized'));
           return;
         }
@@ -89,26 +108,42 @@ export class WebSocketManager extends EventEmitter {
 
           // Identify with wallet address if provided
           if (walletAddress && this.socket) {
+            debugLogger.step(3, 'Identify Wallet to Server', {
+              walletAddress: walletAddress.slice(0, 8) + '...'
+            });
             this.socket.emit('identify', { walletAddress });
           }
 
+          debugLogger.flowSuccess('WEBSOCKET CONNECT', {
+            connected: true,
+            serverUrl: url
+          });
           resolve();
         });
 
         this.socket.on('connect_error', (error) => {
-          console.error('WebSocket connection error:', error);
+          debugLogger.flowError('WEBSOCKET CONNECT', error, {
+            serverUrl: url,
+            timeout: WEBSOCKET_CONFIG.CONNECTION_TIMEOUT
+          });
           reject(error);
         });
 
         // Timeout fallback
         setTimeout(() => {
           if (!this.connectionStatus.connected) {
+            debugLogger.flowError('WEBSOCKET CONNECT', new Error('Connection timeout'), {
+              timeout: `${WEBSOCKET_CONFIG.CONNECTION_TIMEOUT}ms`,
+              serverUrl: url
+            });
             reject(new Error('Connection timeout'));
           }
         }, WEBSOCKET_CONFIG.CONNECTION_TIMEOUT);
       });
     } catch (error) {
-      console.error('Failed to create WebSocket connection:', error);
+      debugLogger.flowError('WEBSOCKET CONNECT', error, {
+        serverUrl: url
+      });
       throw error;
     }
   }
@@ -117,24 +152,36 @@ export class WebSocketManager extends EventEmitter {
    * Disconnect from WebSocket server
    */
   public disconnect(): void {
+    debugLogger.flowStart('WEBSOCKET DISCONNECT', {
+      currentlyConnected: this.connectionStatus.connected,
+      reconnecting: this.connectionStatus.reconnecting
+    });
+
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
+      debugLogger.info('Heartbeat stopped');
     }
 
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
+      debugLogger.info('Reconnect timeout cleared');
     }
 
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
+      debugLogger.info('Socket disconnected and cleared');
     }
 
     this.connectionStatus.connected = false;
     this.connectionStatus.reconnecting = false;
     this.emit('connectionStatus', this.connectionStatus);
+
+    debugLogger.flowSuccess('WEBSOCKET DISCONNECT', {
+      disconnected: true
+    });
   }
 
   /**
@@ -154,7 +201,18 @@ export class WebSocketManager extends EventEmitter {
    */
   public subscribeToRoom(roomId: string): void {
     if (this.socket && this.connectionStatus.connected) {
+      debugLogger.info('🔔 Subscribing to room updates', {
+        roomId,
+        socketConnected: true
+      });
       this.socket.emit('subscribe_room', { roomId });
+      debugLogger.success('✅ Subscribed to room', { roomId });
+    } else {
+      debugLogger.warning('⚠️  Cannot subscribe - socket not connected', {
+        roomId,
+        socketConnected: !!this.socket,
+        connectionStatus: this.connectionStatus.connected
+      });
     }
   }
 
@@ -163,7 +221,15 @@ export class WebSocketManager extends EventEmitter {
    */
   public unsubscribeFromRoom(roomId: string): void {
     if (this.socket && this.connectionStatus.connected) {
+      debugLogger.info('🔕 Unsubscribing from room updates', {
+        roomId
+      });
       this.socket.emit('unsubscribe_room', { roomId });
+      debugLogger.success('✅ Unsubscribed from room', { roomId });
+    } else {
+      debugLogger.warning('⚠️  Cannot unsubscribe - socket not connected', {
+        roomId
+      });
     }
   }
 
@@ -183,6 +249,10 @@ export class WebSocketManager extends EventEmitter {
     this.socket.on('connect', this.handleConnect.bind(this));
     this.socket.on('disconnect', this.handleDisconnect.bind(this));
     this.socket.on('connect_error', this.handleConnectError.bind(this));
+    this.socket.on('reconnect', this.handleReconnect.bind(this));
+    this.socket.on('reconnect_attempt', this.handleReconnectAttempt.bind(this));
+    this.socket.on('reconnect_error', this.handleReconnectError.bind(this));
+    this.socket.on('reconnect_failed', this.handleReconnectFailed.bind(this));
 
     // Game event handlers
     this.socket.on('game_event', this.handleGameEvent.bind(this));
@@ -200,14 +270,24 @@ export class WebSocketManager extends EventEmitter {
    * Handle successful connection
    */
   private handleConnect(): void {
-    console.log('WebSocket connected');
+    debugLogger.success('🌐 WebSocket connected successfully', {
+      lastConnected: new Date().toISOString(),
+      reconnectAttempts: this.connectionStatus.reconnectAttempts
+    });
+
     this.connectionStatus.connected = true;
     this.connectionStatus.reconnecting = false;
     this.connectionStatus.lastConnected = Date.now();
     this.connectionStatus.reconnectAttempts = 0;
 
     this.emit('connectionStatus', this.connectionStatus);
+
+    debugLogger.info('💓 Starting heartbeat mechanism');
     this.startHeartbeat();
+
+    debugLogger.info('📬 Processing queued messages', {
+      queuedCount: this.messageQueue.length
+    });
     this.processMessageQueue();
   }
 
@@ -215,17 +295,27 @@ export class WebSocketManager extends EventEmitter {
    * Handle disconnection
    */
   private handleDisconnect(reason: string): void {
-    console.log('WebSocket disconnected:', reason);
+    debugLogger.warning('🔌 WebSocket disconnected', {
+      reason,
+      wasConnected: this.connectionStatus.connected,
+      lastConnected: this.connectionStatus.lastConnected
+        ? new Date(this.connectionStatus.lastConnected).toISOString()
+        : 'Never',
+      willReconnect: reason !== 'io client disconnect'
+    });
+
     this.connectionStatus.connected = false;
     this.emit('connectionStatus', this.connectionStatus);
 
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
+      debugLogger.info('💔 Heartbeat stopped');
     }
 
     // Auto-reconnect unless manually disconnected
     if (reason !== 'io client disconnect') {
+      debugLogger.info('🔄 Scheduling auto-reconnect');
       this.scheduleReconnect();
     }
   }
@@ -234,15 +324,80 @@ export class WebSocketManager extends EventEmitter {
    * Handle connection error
    */
   private handleConnectError(error: Error): void {
-    console.error('WebSocket connection error:', error);
+    debugLogger.error('❌ WebSocket connection error', error, {
+      reconnectAttempts: this.connectionStatus.reconnectAttempts,
+      maxAttempts: this.maxReconnectAttempts
+    });
+
     this.emit('connectionError', error);
     this.scheduleReconnect();
+  }
+
+  /**
+   * Handle successful reconnection
+   */
+  private handleReconnect(attempt: number): void {
+    debugLogger.success('🔄 WebSocket reconnected successfully', {
+      attempt,
+      totalAttempts: this.connectionStatus.reconnectAttempts
+    });
+
+    this.connectionStatus.connected = true;
+    this.connectionStatus.reconnecting = false;
+    this.connectionStatus.reconnectAttempts = 0;
+    this.emit('connectionStatus', this.connectionStatus);
+  }
+
+  /**
+   * Handle reconnection attempt
+   */
+  private handleReconnectAttempt(attempt: number): void {
+    debugLogger.info('🔄 Attempting to reconnect...', {
+      attempt,
+      maxAttempts: this.maxReconnectAttempts
+    });
+
+    this.connectionStatus.reconnecting = true;
+    this.connectionStatus.reconnectAttempts = attempt;
+    this.emit('connectionStatus', this.connectionStatus);
+  }
+
+  /**
+   * Handle reconnection error
+   */
+  private handleReconnectError(error: Error): void {
+    debugLogger.warning('⚠️ Reconnection attempt failed', {
+      error: error.message,
+      attempt: this.connectionStatus.reconnectAttempts
+    });
+  }
+
+  /**
+   * Handle reconnection failure (all attempts exhausted)
+   */
+  private handleReconnectFailed(): void {
+    debugLogger.error('❌ WebSocket reconnection failed after all attempts', null, {
+      totalAttempts: this.connectionStatus.reconnectAttempts,
+      maxAttempts: this.maxReconnectAttempts
+    });
+
+    this.connectionStatus.reconnecting = false;
+    this.emit('connectionStatus', this.connectionStatus);
+    this.emit('error', new Error('Failed to reconnect after maximum attempts'));
   }
 
   /**
    * Handle incoming game events
    */
   private handleGameEvent(event: GameEvent): void {
+    debugLogger.info('🎮 Game Event Received', {
+      type: event.type,
+      roomId: event.roomId,
+      playerId: event.playerId?.slice(0, 8) + '...',
+      timestamp: new Date(event.timestamp).toISOString(),
+      hasSignature: !!event.signature
+    });
+
     // TODO: Add event validation and filtering
     this.emit('gameEvent', event);
   }
@@ -251,6 +406,12 @@ export class WebSocketManager extends EventEmitter {
    * Handle room updates
    */
   private handleRoomUpdate(data: any): void {
+    debugLogger.info('🏠 Room Update Received', {
+      roomId: data?.roomId || data?.id,
+      status: data?.status,
+      playersCount: data?.players?.length || 'unknown'
+    });
+
     this.emit('roomUpdate', data);
   }
 
@@ -258,6 +419,11 @@ export class WebSocketManager extends EventEmitter {
    * Handle lobby updates
    */
   private handleLobbyUpdate(data: any): void {
+    debugLogger.info('🎪 Lobby Update Received', {
+      totalRooms: data?.rooms?.length || data?.totalRooms || 'unknown',
+      activeGames: data?.activeGames || 'unknown'
+    });
+
     this.emit('lobbyUpdate', data);
   }
 
