@@ -148,23 +148,30 @@ export class GameHistoryService {
       // TODO: Implement actual data fetching from Solana program accounts
       const data = await this.fetchGameHistoryFromRPC(filters, page, limit);
 
-      // Cache the result
+      // Cache the result in memory
       this.cache.set(cacheKey, {
         data,
         timestamp: Date.now(),
       });
 
-      // Store in IndexedDB for offline access
-      await this.storeInIndexedDB('cache', { key: cacheKey, data, timestamp: Date.now() });
+      // Store in IndexedDB for offline access (fire and forget)
+      this.storeInIndexedDB('cache', { key: cacheKey, data, timestamp: Date.now() }).catch(() => {
+        // Silently ignore IndexedDB errors - not critical for functionality
+      });
 
       return data;
     } catch (error) {
       console.error('Failed to fetch game history:', error);
 
-      // Try to get from IndexedDB cache
-      const cachedFromDB = await this.getFromIndexedDB('cache', cacheKey);
-      if (cachedFromDB) {
-        return cachedFromDB.data;
+      // Try to get from IndexedDB cache as fallback
+      try {
+        const cachedFromDB = await this.getFromIndexedDB('cache', cacheKey);
+        if (cachedFromDB) {
+          return cachedFromDB.data;
+        }
+      } catch (dbError) {
+        // Ignore IndexedDB errors during retrieval
+        console.debug('IndexedDB cache retrieval failed:', dbError);
       }
 
       throw error;
@@ -472,14 +479,19 @@ export class GameHistoryService {
   private async storeInIndexedDB(storeName: string, data: any): Promise<void> {
     if (!this.db) return;
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([storeName], 'readwrite');
-      const store = transaction.objectStore(storeName);
-      const request = store.put(data);
+    try {
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([storeName], 'readwrite');
+        const store = transaction.objectStore(storeName);
+        const request = store.put(data);
 
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      // Silently fail if IndexedDB is not ready or has issues
+      console.debug('IndexedDB storage failed (non-critical):', error);
+    }
   }
 
   /**
@@ -488,14 +500,20 @@ export class GameHistoryService {
   private async getFromIndexedDB(storeName: string, key: string): Promise<any> {
     if (!this.db) return null;
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([storeName], 'readonly');
-      const store = transaction.objectStore(storeName);
-      const request = store.get(key);
+    try {
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([storeName], 'readonly');
+        const store = transaction.objectStore(storeName);
+        const request = store.get(key);
 
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      // Silently fail if IndexedDB is not ready or has issues
+      console.debug('IndexedDB retrieval failed (non-critical):', error);
+      return null;
+    }
   }
 }
 
