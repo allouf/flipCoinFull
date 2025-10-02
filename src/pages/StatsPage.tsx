@@ -14,7 +14,7 @@ export const StatsPage: React.FC = () => {
   });
 
   // Extract stats from the fetched data
-  const stats = data?.pages?.[0]?.stats || {
+  const stats = data?.stats || {
     totalGames: 0,
     totalWins: 0,
     totalLosses: 0,
