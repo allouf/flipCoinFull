@@ -1,23 +1,36 @@
 import React from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { TrendingUp, TrendingDown, Trophy, Target, Clock, DollarSign } from 'lucide-react';
+import { useTransactionHistory } from '../hooks/useTransactionHistory';
 
 export const StatsPage: React.FC = () => {
   const { connected } = useWallet();
 
-  // Mock data - replace with actual data from hooks
-  const stats = {
+  // Fetch game history and statistics
+  const { data, isLoading } = useTransactionHistory({
+    filters: {},
+    page: 1,
+    limit: 1000
+  });
+
+  // Extract stats from the fetched data
+  const stats = data?.pages?.[0]?.stats || {
     totalGames: 0,
-    wins: 0,
-    losses: 0,
-    totalWagered: 0,
-    totalWon: 0,
-    netProfit: 0,
+    totalWins: 0,
+    totalLosses: 0,
     winRate: 0,
-    avgBet: 0,
-    biggestWin: 0,
+    netProfit: 0,
+    totalVolume: 0,
+    averageBet: 0,
+    largestWin: 0,
+    largestLoss: 0,
     currentStreak: 0,
-    longestStreak: 0
+    bestStreak: 0,
+    worstStreak: 0,
+    gamesThisWeek: 0,
+    gamesLastWeek: 0,
+    profitThisWeek: 0,
+    profitLastWeek: 0
   };
 
   if (!connected) {
@@ -28,6 +41,15 @@ export const StatsPage: React.FC = () => {
         <p className="text-base-content/60 text-center max-w-md">
           Connect your Solana wallet to view your gaming statistics and history.
         </p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <span className="loading loading-spinner loading-lg text-primary"></span>
+        <p className="text-base-content/60">Loading your statistics...</p>
       </div>
     );
   }
@@ -62,9 +84,9 @@ export const StatsPage: React.FC = () => {
             <Trophy className="w-8 h-8" />
           </div>
           <div className="stat-title">Win Rate</div>
-          <div className="stat-value text-success">{stats.winRate}%</div>
+          <div className="stat-value text-success">{(stats.winRate * 100).toFixed(1)}%</div>
           <div className="stat-desc">
-            {stats.wins}W / {stats.losses}L
+            {stats.totalWins}W / {stats.totalLosses}L
           </div>
         </div>
 
@@ -82,7 +104,7 @@ export const StatsPage: React.FC = () => {
             {stats.netProfit >= 0 ? '+' : ''}{stats.netProfit.toFixed(3)} SOL
           </div>
           <div className="stat-desc">
-            {stats.totalWon.toFixed(3)} won - {stats.totalWagered.toFixed(3)} wagered
+            {(stats.netProfit + stats.totalVolume).toFixed(3)} won - {stats.totalVolume.toFixed(3)} wagered
           </div>
         </div>
 
@@ -93,7 +115,7 @@ export const StatsPage: React.FC = () => {
           </div>
           <div className="stat-title">Current Streak</div>
           <div className="stat-value text-secondary">{stats.currentStreak}</div>
-          <div className="stat-desc">Best: {stats.longestStreak}</div>
+          <div className="stat-desc">Best: {stats.bestStreak}</div>
         </div>
       </div>
 
@@ -109,22 +131,22 @@ export const StatsPage: React.FC = () => {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-base-content/70">Average Bet Size</span>
-                <span className="font-mono">{stats.avgBet.toFixed(3)} SOL</span>
+                <span className="font-mono">{stats.averageBet.toFixed(3)} SOL</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-base-content/70">Biggest Win</span>
                 <span className="font-mono text-success">
-                  +{stats.biggestWin.toFixed(3)} SOL
+                  +{stats.largestWin.toFixed(3)} SOL
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-base-content/70">Total Volume</span>
-                <span className="font-mono">{stats.totalWagered.toFixed(3)} SOL</span>
+                <span className="font-mono">{stats.totalVolume.toFixed(3)} SOL</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-base-content/70">House Fees Paid</span>
                 <span className="font-mono">
-                  {(stats.totalWagered * 0.07).toFixed(3)} SOL
+                  {(stats.totalVolume * 0.07).toFixed(3)} SOL
                 </span>
               </div>
             </div>
@@ -179,7 +201,7 @@ export const StatsPage: React.FC = () => {
 
             {/* First Win */}
             <div className={`text-center p-4 rounded-lg border-2 ${
-              stats.wins > 0 ? 'border-success bg-success/10' : 'border-base-300 bg-base-200/50'
+              stats.totalWins > 0 ? 'border-success bg-success/10' : 'border-base-300 bg-base-200/50'
             }`}>
               <div className="text-2xl mb-1">🏆</div>
               <div className="text-xs font-medium">First Win</div>
@@ -187,7 +209,7 @@ export const StatsPage: React.FC = () => {
 
             {/* Hot Streak */}
             <div className={`text-center p-4 rounded-lg border-2 ${
-              stats.longestStreak >= 3 ? 'border-warning bg-warning/10' : 'border-base-300 bg-base-200/50'
+              stats.bestStreak >= 3 ? 'border-warning bg-warning/10' : 'border-base-300 bg-base-200/50'
             }`}>
               <div className="text-2xl mb-1">🔥</div>
               <div className="text-xs font-medium">Hot Streak</div>
@@ -195,7 +217,7 @@ export const StatsPage: React.FC = () => {
 
             {/* High Roller */}
             <div className={`text-center p-4 rounded-lg border-2 ${
-              stats.biggestWin >= 10 ? 'border-secondary bg-secondary/10' : 'border-base-300 bg-base-200/50'
+              stats.largestWin >= 10 ? 'border-secondary bg-secondary/10' : 'border-base-300 bg-base-200/50'
             }`}>
               <div className="text-2xl mb-1">💎</div>
               <div className="text-xs font-medium">High Roller</div>
