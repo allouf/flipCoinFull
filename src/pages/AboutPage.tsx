@@ -1,29 +1,14 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { WalletConnectButton } from '../components/WalletConnectButton';
-import { NetworkSelector } from '../components/NetworkSelector';
 import { Coins, Shield, Trophy, Clock, AlertCircle, DollarSign, Zap, Lock, ChevronRight } from 'lucide-react';
 
 export const AboutPage: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-base-100 to-base-200">
-      {/* Header */}
-      <header className="navbar bg-base-300/50 backdrop-blur-sm border-b border-base-300/20">
-        <div className="navbar-start">
-          <h1 className="text-2xl font-bold gradient-bg bg-clip-text text-transparent">
-            Solana Coin Flipper
-          </h1>
-        </div>
-        <div className="navbar-end gap-4">
-          <NetworkSelector />
-          <WalletConnectButton />
-        </div>
-      </header>
-
+    <div className="bg-gradient-to-br from-base-100 to-base-200">
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <div className="max-w-6xl mx-auto">
         {/* Hero Section */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold mb-4 gradient-bg bg-clip-text text-transparent">
@@ -370,7 +355,7 @@ export const AboutPage: React.FC = () => {
             Built on Solana • Open Source • Auditable
           </p>
         </div>
-      </main>
+      </div>
     </div>
   );
 };
