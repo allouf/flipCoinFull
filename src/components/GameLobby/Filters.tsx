@@ -20,7 +20,7 @@ export const Filters: React.FC<FiltersProps> = ({
           <span className="label-text">Sort By</span>
         </label>
         <select
-          className="select select-bordered w-full"
+          className="select select-bordered w-full h-12"
           value={sortBy}
           onChange={(e) => onSortChange(e.target.value as any)}
         >
@@ -37,7 +37,7 @@ export const Filters: React.FC<FiltersProps> = ({
           <span className="label-text">Bet Amount</span>
         </label>
         <select
-          className="select select-bordered w-full"
+          className="select select-bordered w-full h-12"
           value={betFilter}
           onChange={(e) => onBetFilterChange(e.target.value as any)}
         >

@@ -270,7 +270,7 @@ export const HistoryFilters: React.FC<HistoryFiltersProps> = ({
                 value={localFilters.outcome || 'all'}
                 onChange={(e) => applyFilters({ outcome: e.target.value === 'all' ? undefined : e.target.value as 'wins' | 'losses' })}
                 disabled={isLoading}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-11 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="all">All Games</option>
                 <option value="wins">Wins Only</option>
@@ -285,7 +285,7 @@ export const HistoryFilters: React.FC<HistoryFiltersProps> = ({
                 value={localFilters.token || ''}
                 onChange={(e) => applyFilters({ token: e.target.value || undefined })}
                 disabled={isLoading}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-11 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {TOKEN_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>

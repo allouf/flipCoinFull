@@ -84,8 +84,8 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ gameHistory, loading }
       <div className="flex flex-wrap gap-4 items-center justify-between">
         <div className="flex gap-2">
           <div className="form-control">
-            <select 
-              className="select select-sm select-bordered"
+            <select
+              className="select select-sm select-bordered h-10"
               value={filter}
               onChange={(e) => setFilter(e.target.value as any)}
             >
@@ -94,10 +94,10 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ gameHistory, loading }
               <option value="losses">Losses only</option>
             </select>
           </div>
-          
+
           <div className="form-control">
-            <select 
-              className="select select-sm select-bordered"
+            <select
+              className="select select-sm select-bordered h-10"
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value as any)}
             >

@@ -97,7 +97,7 @@ export const AvailableGames: React.FC<AvailableGamesProps> = ({ availableGames, 
             <span className="label-text text-sm">Bet Amount</span>
           </label>
           <select
-            className="select select-sm select-bordered min-w-[150px]"
+            className="select select-sm select-bordered min-w-[150px] h-10"
             value={betFilter}
             onChange={(e) => setBetFilter(e.target.value)}
           >
