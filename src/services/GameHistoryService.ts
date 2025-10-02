@@ -180,12 +180,13 @@ export class GameHistoryService {
     page: number,
     limit: number,
   ): Promise<PaginatedGameHistory> {
-    if (!this.program || !this.userPublicKey) {
-      throw new Error('Program or user public key not available');
+    if (!this.userPublicKey) {
+      throw new Error('User public key not available');
     }
 
     // TODO: Implement actual program account fetching
-    // This is a placeholder implementation
+    // This is a placeholder implementation with mock data
+    // When program is available, replace with real blockchain data fetching
     const mockData: GameHistoryRecord[] = [
       {
         id: '1',
@@ -203,6 +204,40 @@ export class GameHistoryService {
         status: 'completed',
         blockNumber: 123456789,
         programAccount: 'program123...abc',
+      },
+      {
+        id: '2',
+        signature: '6LKq8a9x3Fw4...def789',
+        timestamp: new Date('2025-09-02T14:30:00Z'),
+        player1: 'CYu8a9x3Fw4...ghi789',
+        player2: this.userPublicKey.toString(),
+        betAmount: 0.5,
+        token: 'SOL',
+        player1Choice: 'tails',
+        player2Choice: 'heads',
+        result: 'heads',
+        winner: this.userPublicKey.toString(),
+        houseFee: 0.015,
+        status: 'completed',
+        blockNumber: 123456790,
+        programAccount: 'program123...def',
+      },
+      {
+        id: '3',
+        signature: '7MNr9b0y4Gx5...ghi012',
+        timestamp: new Date('2025-09-03T09:15:00Z'),
+        player1: this.userPublicKey.toString(),
+        player2: 'DZv9b0y4Gx5...jkl012',
+        betAmount: 0.2,
+        token: 'SOL',
+        player1Choice: 'heads',
+        player2Choice: 'heads',
+        result: 'tails',
+        winner: 'DZv9b0y4Gx5...jkl012',
+        houseFee: 0.006,
+        status: 'completed',
+        blockNumber: 123456791,
+        programAccount: 'program123...ghi',
       },
       // TODO: Add more mock data or replace with real data fetching
     ];
