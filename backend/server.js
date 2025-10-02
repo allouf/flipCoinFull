@@ -24,6 +24,7 @@ app.use(cors({
     'http://localhost:3004',
     'http://localhost:3005',
     'http://localhost:3010',
+    'https://solana-coin-flipper.vercel.app',
     process.env.FRONTEND_URL
   ].filter(Boolean),
   credentials: true
@@ -42,6 +43,7 @@ const io = new Server(server, {
       'http://localhost:3004',
       'http://localhost:3005',
       'http://localhost:3010',
+      'https://solana-coin-flipper.vercel.app',
       process.env.FRONTEND_URL
     ].filter(Boolean),
     methods: ['GET', 'POST'],
