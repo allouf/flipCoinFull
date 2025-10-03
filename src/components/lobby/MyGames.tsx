@@ -172,10 +172,10 @@ export const MyGames: React.FC<MyGamesProps> = ({ myGames, loading }) => {
                       <button
                         className="btn btn-sm btn-primary"
                         onClick={() => navigate(`/game/${game.id}`)}
-                        title="Enter the game room"
+                        title="View your game room"
                       >
                         <Play className="w-3 h-3" />
-                        Enter Game
+                        View Room
                       </button>
                       <button
                         className="btn btn-sm btn-primary btn-outline"
@@ -204,7 +204,7 @@ export const MyGames: React.FC<MyGamesProps> = ({ myGames, loading }) => {
                       onClick={() => handleContinueGame(game.id)}
                       disabled={loading}
                     >
-                      Continue
+                      Continue Game
                     </button>
                   )}
                   {game.status === 'completed' && (

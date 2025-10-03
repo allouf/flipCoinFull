@@ -333,6 +333,67 @@ export const GameRoomPage: React.FC = () => {
       );
     }
 
+    // Check if game is in progress (spectatable)
+    const status = gameData?.status;
+    const statusKey = typeof status === 'object' ? Object.keys(status)[0] : status;
+    const isGameInProgress = statusKey && (
+      statusKey === 'playersReady' ||
+      statusKey === 'PlayersReady' ||
+      statusKey === 'commitmentsReady' ||
+      statusKey === 'CommitmentsReady' ||
+      statusKey === 'revealingPhase' ||
+      statusKey === 'RevealingPhase' ||
+      statusKey === 'active'
+    );
+
+    const isGameCompleted = statusKey && (
+      statusKey === 'resolved' ||
+      statusKey === 'Resolved' ||
+      statusKey === 'completed'
+    );
+
+    // If game is in progress, allow spectating
+    if (isGameInProgress || isGameCompleted) {
+      return (
+        <div>
+          {/* Page Header */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <button onClick={handleBackToLobby} className="btn btn-ghost btn-sm mb-2">
+                  <ArrowLeft className="w-4 h-4 mr-1" />
+                  Back to Lobby
+                </button>
+                <h1 className="text-3xl font-bold">
+                  Game Room #{gameId}
+                </h1>
+              </div>
+            </div>
+          </div>
+
+          {/* Spectator Mode Banner */}
+          <div className="alert alert-info mb-6 shadow-lg">
+            <div className="flex items-center gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current flex-shrink-0 w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              <div>
+                <h3 className="font-bold">Spectator Mode</h3>
+                <div className="text-sm">You are watching this game. You cannot interact or place bets.</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Game Interface Component in Spectator Mode */}
+          <div className="max-w-6xl mx-auto">
+            <GameInterface gameId={gameId} isSpectator={true} />
+          </div>
+        </div>
+      );
+    }
+
+    // Game is not joinable and not in progress - show "not available"
     return (
       <div>
         <div className="mb-6">
@@ -352,14 +413,9 @@ export const GameRoomPage: React.FC = () => {
               Game Not Available
             </h2>
             <p className="text-base-content/70 mb-6">
-              This game is either full, already in progress, or has been completed.
-              You cannot join at this time.
+              This game is waiting for players or has been cancelled.
+              You cannot join or spectate at this time.
             </p>
-            {gameData && publicKey && (
-              <div className="text-xs text-base-content/40 mb-4">
-                Debug: PlayerA: {gameData.playerA}, You: {publicKey.toString()}
-              </div>
-            )}
             <button onClick={handleBackToLobby} className="btn btn-primary">
               <Coins className="w-4 h-4 mr-2" />
               Browse Available Games

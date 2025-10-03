@@ -305,9 +305,10 @@ const NotificationList: React.FC<{
 interface GameInterfaceProps {
   gameId?: string;
   isGameRoom?: boolean; // When true, hides create/join sections
+  isSpectator?: boolean; // When true, user is spectating (read-only mode)
 }
 
-export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom = false }) => {
+export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom = false, isSpectator = false }) => {
   const { connected } = useWallet();
   const navigate = useNavigate();
   const fairCoinFlipperResult = useFairCoinFlipper();
@@ -742,7 +743,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
                 <CoinChoice
                   side="heads"
                   selected={gameState.phase === 'revealing' ? gameState.playerChoice === 'heads' : selectedChoice === 'heads'}
-                  disabled={gameState.phase !== 'idle'}
+                  disabled={gameState.phase !== 'idle' || isSpectator}
                   onClick={() => {
                     console.log('🟡 HEADS BUTTON CLICKED!', {
                       phase: gameState.phase,
@@ -760,7 +761,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
                 <CoinChoice
                   side="tails"
                   selected={gameState.phase === 'revealing' ? gameState.playerChoice === 'tails' : selectedChoice === 'tails'}
-                  disabled={gameState.phase !== 'idle'}
+                  disabled={gameState.phase !== 'idle' || isSpectator}
                   onClick={() => {
                     console.log('🟡 TAILS BUTTON CLICKED!', {
                       phase: gameState.phase,
@@ -956,24 +957,26 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
                     <>
                       <div className="flex justify-center gap-8 mb-6">
                         <button
-                          onClick={() => setSelectedChoice('heads')}
+                          onClick={() => !isSpectator && setSelectedChoice('heads')}
+                          disabled={isSpectator}
                           className={`group relative p-6 rounded-xl transition-all transform hover:scale-105 ${
                             selectedChoice === 'heads'
                               ? 'bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg scale-105'
                               : 'bg-gray-100 hover:bg-gray-200'
-                          }`}
+                          } ${isSpectator ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <div className="text-5xl mb-2">👑</div>
                           <p className={`font-bold ${selectedChoice === 'heads' ? 'text-white' : 'text-gray-700'}`}>HEADS</p>
                         </button>
 
                         <button
-                          onClick={() => setSelectedChoice('tails')}
+                          onClick={() => !isSpectator && setSelectedChoice('tails')}
+                          disabled={isSpectator}
                           className={`group relative p-6 rounded-xl transition-all transform hover:scale-105 ${
                             selectedChoice === 'tails'
                               ? 'bg-gradient-to-br from-blue-400 to-purple-500 shadow-lg scale-105'
                               : 'bg-gray-100 hover:bg-gray-200'
-                          }`}
+                          } ${isSpectator ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <div className="text-5xl mb-2">🪙</div>
                           <p className={`font-bold ${selectedChoice === 'tails' ? 'text-white' : 'text-gray-700'}`}>TAILS</p>
@@ -982,7 +985,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
 
                       <button
                         onClick={handleMakeCommitment}
-                        disabled={gameState.isLoading || !selectedChoice || !!gameState.error}
+                        disabled={gameState.isLoading || !selectedChoice || !!gameState.error || isSpectator}
                         className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-lg rounded-lg hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02]"
                       >
                         {gameState.isLoading ? (
@@ -1073,7 +1076,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
                         <>
                           <button
                             onClick={handleRevealChoice}
-                            disabled={gameState.isLoading || isRevealing}
+                            disabled={gameState.isLoading || isRevealing || isSpectator}
                             className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-lg rounded-lg hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02]"
                           >
                             {gameState.isLoading || isRevealing ? (
