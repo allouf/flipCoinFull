@@ -61,19 +61,17 @@ export const Navigation: React.FC = () => {
 
   return (
     <div className="navbar bg-base-300/50 backdrop-blur-sm border-b border-base-300/20 sticky top-0 z-50">
-      {/* Logo/Brand */}
-      <div className="navbar-start">
+      {/* Logo/Brand + Navigation Links */}
+      <div className="navbar-start gap-4">
         <NavLink to="/lobby" className="btn btn-ghost text-xl font-bold">
           <Coins className="w-6 h-6 text-primary" />
           <span className="gradient-bg bg-clip-text text-transparent">
             Fair Coin Flipper
           </span>
         </NavLink>
-      </div>
 
-      {/* Navigation Links */}
-      <div className="navbar-center hidden lg:flex">
-        <ul className="menu menu-horizontal px-1 gap-2">
+        {/* Navigation Links */}
+        <ul className="menu menu-horizontal px-1 gap-1 hidden lg:flex">
           {navItems.map((item) => (
             <li key={item.id}>
               <NavLink
@@ -95,7 +93,7 @@ export const Navigation: React.FC = () => {
       </div>
 
       {/* Right Side - Network & Wallet */}
-      <div className="navbar-end gap-4">
+      <div className="navbar-end gap-2">
         {/* Network Selector */}
         <div className="hidden md:block">
           <NetworkSelector />
@@ -103,13 +101,13 @@ export const Navigation: React.FC = () => {
 
         {/* Wallet Balance (Only when connected) */}
         {connected && balance !== null && (
-          <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-success/10 to-primary/10 border border-success/20 rounded-lg shadow-sm">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-success/10 to-primary/10 border border-success/20 rounded-lg shadow-sm">
             <Wallet className="w-4 h-4 text-success" />
-            <div>
-              <div className="text-xs text-base-content/60 leading-tight">Balance</div>
-              <div className="text-sm font-bold font-mono leading-tight text-success">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-base-content/60">Balance:</span>
+              <span className="text-sm font-bold font-mono text-success">
                 {balance.toFixed(4)} SOL
-              </div>
+              </span>
             </div>
           </div>
         )}
