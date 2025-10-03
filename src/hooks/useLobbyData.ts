@@ -19,6 +19,13 @@ export interface MyGameData {
   betAmount: number;
   winner?: string;
   phase?: string;
+  creatorId: string;
+  joinerId?: string;
+  creatorChoice?: string;
+  joinerChoice?: string;
+  coinResult?: string;
+  signature?: string;
+  completedAt?: string;
 }
 
 export interface RunningGameData {
@@ -211,6 +218,19 @@ export const useLobbyData = () => {
           }
         }
 
+        // Get player choices
+        const creatorChoice = getSelectionString(room.player1Selection);
+        const joinerChoice = getSelectionString(room.player2Selection);
+
+        // Determine coin result for completed games
+        let coinResult: string | undefined;
+        if (status === 'completed' && room.winner) {
+          const isWinner = room.winner.toString() === userPublicKey;
+          const yourChoice = isCreator ? creatorChoice : joinerChoice;
+          // If you won, coin result is your choice; if you lost, it's the opposite
+          coinResult = isWinner ? yourChoice : (yourChoice === 'heads' ? 'tails' : 'heads');
+        }
+
         return {
           id: room.gameId.toNumber().toString(),
           status: status as 'waiting' | 'active' | 'completed' | 'cancelled',
@@ -219,6 +239,13 @@ export const useLobbyData = () => {
           betAmount: room.betAmount.toNumber() / 1e9,
           winner,
           phase,
+          creatorId: room.playerA.toString(),
+          joinerId: room.playerB?.toString(),
+          creatorChoice: creatorChoice || undefined,
+          joinerChoice: joinerChoice || undefined,
+          coinResult,
+          signature: undefined, // TODO: Add signature from transaction if available
+          completedAt: status === 'completed' ? new Date(room.createdAt.toNumber() * 1000).toISOString() : undefined,
         };
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Most recent first
