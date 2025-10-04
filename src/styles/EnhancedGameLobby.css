@@ -743,25 +743,49 @@
   .enhanced-game-lobby {
     padding: 1rem;
   }
-  
+
   .lobby-title {
     font-size: 2rem;
   }
-  
+
   .lobby-tabs {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.25rem;
+    overflow-x: visible;
   }
-  
+
   .lobby-tab {
     flex: 1;
-    min-width: auto;
+    min-width: 0;
+    min-height: 60px;
+    flex-direction: column;
     justify-content: center;
-    padding: 0.5rem 0.75rem;
+    align-items: center;
+    padding: 0.625rem 0.375rem;
+    gap: 0.25rem;
   }
-  
+
+  .tab-icon {
+    font-size: 1rem;
+    margin: 0;
+  }
+
   .tab-label {
-    display: none;
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  .tab-count {
+    margin-top: 0.25rem;
+    font-size: 0.6875rem;
+    padding: 0.125rem 0.375rem;
+    min-width: 1.25rem;
+    height: 1rem;
+    line-height: 1;
+    font-weight: 700;
   }
   
   .filters-row {
@@ -800,13 +824,23 @@
   .lobby-tabs {
     padding: 0.25rem;
   }
-  
+
   .lobby-tab {
-    padding: 0.5rem;
+    padding: 0.5rem 0.25rem;
+    min-height: 58px;
   }
-  
+
   .tab-icon {
-    font-size: 1rem;
+    font-size: 0.95rem;
+  }
+
+  .tab-label {
+    font-size: 0.75rem;
+  }
+
+  .tab-count {
+    font-size: 0.625rem;
+    padding: 0.1rem 0.3rem;
   }
   
   .games-grid {
