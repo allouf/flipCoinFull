@@ -102,15 +102,15 @@ export const Tabs: React.FC<TabsProps> = ({
           onClick={() => onTabChange(tab.value)}
         >
           {/* Label with icon - stacked on mobile, horizontal on desktop */}
-          <span className="flex items-center gap-0.5 md:gap-1 flex-nowrap">
+          <span className="flex items-center gap-1 md:gap-1 flex-nowrap">
             {tab.icon}
             {/* Show full label on md+, abbreviated on smaller screens */}
-            <span className="hidden md:inline whitespace-nowrap text-sm">{tab.label}</span>
-            <span className="md:hidden whitespace-nowrap text-xs leading-none">{mobileLabels[tab.value]}</span>
+            <span className="hidden md:inline whitespace-nowrap text-sm font-medium">{tab.label}</span>
+            <span className="md:hidden whitespace-nowrap text-sm leading-tight font-medium">{mobileLabels[tab.value]}</span>
           </span>
           {/* Show count badge - below label on mobile, beside on desktop */}
           {tab.showCount && (tabCounts[tab.value] ?? 0) > 0 && (
-            <span className="badge badge-xs mt-1 md:mt-0 text-[10px] md:text-xs h-4 md:h-auto min-h-0 md:min-h-[1rem] px-1.5 md:px-2">
+            <span className="badge badge-xs mt-1 md:mt-0 text-[11px] md:text-xs h-4 md:h-auto min-h-0 md:min-h-[1rem] px-1.5 md:px-2 font-semibold">
               {tabCounts[tab.value] ?? 0}
             </span>
           )}
