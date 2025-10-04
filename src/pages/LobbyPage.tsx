@@ -110,20 +110,20 @@ export const LobbyPage: React.FC = () => {
       {/* Header */}
       <header className="navbar bg-base-300/50 backdrop-blur-sm border-b border-base-300/20">
         <div className="navbar-start">
-          <h1 className="text-xl font-bold">🎯 Game Lobby</h1>
+          <h1 className="text-base sm:text-xl font-bold">🎯 Game Lobby</h1>
         </div>
-        <div className="navbar-end gap-4">
+        <div className="navbar-end gap-2 sm:gap-4">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn btn-primary"
+            className="btn btn-primary btn-sm sm:btn-md"
           >
             <Plus size={16} />
-            Create Game
+            <span className="hidden sm:inline">Create Game</span>
           </button>
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="btn btn-ghost"
+            className="btn btn-ghost btn-sm sm:btn-md"
           >
             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           </button>
@@ -131,7 +131,7 @@ export const LobbyPage: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="max-w-6xl mx-auto">
 
           {/* Active Game Notice */}
@@ -151,51 +151,51 @@ export const LobbyPage: React.FC = () => {
           )}
 
           {/* Tabs */}
-          <div className="tabs tabs-boxed mb-6">
+          <div className="tabs tabs-boxed mb-4 sm:mb-6 overflow-x-auto flex-nowrap">
             <a
-              className={`tab ${activeTab === 'available' ? 'tab-active' : ''}`}
+              className={`tab tab-sm sm:tab-md ${activeTab === 'available' ? 'tab-active' : ''}`}
               onClick={() => setActiveTab('available')}
             >
-              <Users size={16} className="mr-2" />
-              Available Games
+              <Users size={14} className="mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Available</span>
               {availableGames && availableGames.length > 0 && (
-                <span className="badge badge-primary badge-sm ml-2">{availableGames.length}</span>
+                <span className="badge badge-primary badge-xs sm:badge-sm ml-1 sm:ml-2">{availableGames.length}</span>
               )}
             </a>
             <a
-              className={`tab ${activeTab === 'running' ? 'tab-active' : ''}`}
+              className={`tab tab-sm sm:tab-md ${activeTab === 'running' ? 'tab-active' : ''}`}
               onClick={() => setActiveTab('running')}
             >
-              <Clock size={16} className="mr-2" />
-              Running Games
+              <Clock size={14} className="mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Running</span>
               {runningGames && runningGames.length > 0 && (
-                <span className="badge badge-secondary badge-sm ml-2">{runningGames.length}</span>
+                <span className="badge badge-secondary badge-xs sm:badge-sm ml-1 sm:ml-2">{runningGames.length}</span>
               )}
             </a>
             <a
-              className={`tab ${activeTab === 'my-games' ? 'tab-active' : ''}`}
+              className={`tab tab-sm sm:tab-md ${activeTab === 'my-games' ? 'tab-active' : ''}`}
               onClick={() => setActiveTab('my-games')}
             >
-              <Trophy size={16} className="mr-2" />
-              My Games
+              <Trophy size={14} className="mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">My Games</span>
               {myGames && myGames.length > 0 && (
-                <span className="badge badge-accent badge-sm ml-2">{myGames.length}</span>
+                <span className="badge badge-accent badge-xs sm:badge-sm ml-1 sm:ml-2">{myGames.length}</span>
               )}
             </a>
             <a
-              className={`tab ${activeTab === 'history' ? 'tab-active' : ''}`}
+              className={`tab tab-sm sm:tab-md ${activeTab === 'history' ? 'tab-active' : ''}`}
               onClick={() => setActiveTab('history')}
             >
-              <History size={16} className="mr-2" />
-              History
+              <History size={14} className="mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">History</span>
               {gameHistory && gameHistory.length > 0 && (
-                <span className="badge badge-neutral badge-sm ml-2">{gameHistory.length}</span>
+                <span className="badge badge-neutral badge-xs sm:badge-sm ml-1 sm:ml-2">{gameHistory.length}</span>
               )}
             </a>
           </div>
 
           {/* Tab Content */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="bg-white rounded-lg shadow-lg p-3 sm:p-6">
             {renderTabContent()}
           </div>
         </div>

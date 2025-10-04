@@ -50,16 +50,16 @@ export const GameCard: React.FC<GameCardProps> = ({
         game.status === 'RevealingPhase' ? 'border-l-4 border-l-warning' : ''
       }`}
     >
-      <div className="card-body">
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <h4 className="card-title text-lg flex items-center gap-2">
+      <div className="card-body p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+          <div className="flex-1 w-full">
+            <h4 className="card-title text-base sm:text-lg flex items-center gap-2 flex-wrap">
               {game.status === 'RevealingPhase' && '⚡'} Game #{game.gameId}
               <div className={`badge ${getStatusColor()} badge-sm`}>
                 {game.status}
               </div>
             </h4>
-            <div className="flex flex-wrap gap-4 mt-2 text-sm">
+            <div className="flex flex-wrap gap-2 sm:gap-4 mt-2 text-xs sm:text-sm">
               <div className="flex items-center gap-1">
                 <span className="text-base-content/60">Bet:</span>
                 <span className="font-semibold">{game.betAmount} SOL</span>
@@ -95,29 +95,29 @@ export const GameCard: React.FC<GameCardProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex sm:flex-col gap-2 w-full sm:w-auto">
             {game.status === 'WaitingForPlayer' &&
               (isCurrentPlayer ? (
                 <>
                   <button
                     onClick={() => onRejoin(game.gamePda, game.gameId)}
-                    className="btn btn-success btn-sm"
+                    className="btn btn-success btn-sm flex-1 sm:flex-none min-h-[44px]"
                     title="Rejoin your game (free)"
                   >
                     🎮 Rejoin
                   </button>
                   <button
                     onClick={copyGameLink}
-                    className="btn btn-outline btn-xs"
+                    className="btn btn-outline btn-xs flex-1 sm:flex-none min-h-[44px]"
                     title="Copy game link to share"
                   >
-                    📋 Share Link
+                    📋 Share
                   </button>
                 </>
               ) : (
                 <button
                   onClick={() => onJoin(game.gamePda, game.gameId)}
-                  className="btn btn-primary btn-sm"
+                  className="btn btn-primary btn-sm w-full sm:w-auto min-h-[44px]"
                 >
                   Join Game
                 </button>

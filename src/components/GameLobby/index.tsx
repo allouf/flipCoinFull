@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { useSwipeable } from 'react-swipeable';
 import { useGameDiscovery } from '../../hooks/useGameDiscovery';
 import { GameData, GameStatus } from '../../types/game';
 import { Filters } from './Filters';
@@ -163,6 +164,22 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
     onRejoinGame?.(gamePda, gameId);
   };
 
+  // Swipe handlers for mobile pagination
+  const swipeHandlers = useSwipeable({
+    onSwipedLeft: () => {
+      if (currentPage < totalPages) {
+        setCurrentPage(prev => prev + 1);
+      }
+    },
+    onSwipedRight: () => {
+      if (currentPage > 1) {
+        setCurrentPage(prev => prev - 1);
+      }
+    },
+    preventScrollOnSwipe: true,
+    trackMouse: false, // Only track touch events, not mouse
+  });
+
   const renderContent = () => {
     if (error) {
       return (
@@ -210,7 +227,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
     }
 
     return (
-      <div className="grid gap-4">
+      <div {...swipeHandlers} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {displayedGames.map((game) => (
           <GameCard
             key={game.gamePda}

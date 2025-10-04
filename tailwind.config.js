@@ -6,6 +6,13 @@ module.exports = {
   ],
   theme: {
     extend: {
+      screens: {
+        'xs': '320px',
+        'sm': '481px',
+        'md': '769px',
+        'lg': '1024px',
+        'xl': '1280px',
+      },
       colors: {
         solana: {
           purple: '#9945FF',

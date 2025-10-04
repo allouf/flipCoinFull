@@ -352,63 +352,19 @@
   50% { transform: rotate(180deg) scale(1.1); }
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .coin-flip-animation {
-    padding: 2rem 1rem;
-    min-height: 400px;
-  }
-
-  .animation-container {
-    width: 250px;
-    height: 250px;
-    margin-bottom: 1.5rem;
-  }
-
-  .coin-3d-flip {
-    width: 120px;
-    height: 120px;
-  }
-
-  .coin-symbol {
-    font-size: 2.5rem;
-  }
-
-  .coin-text {
-    font-size: 0.7rem;
-  }
-
-  .status-text {
-    font-size: 1.1rem;
-  }
-
-  .result-card {
-    padding: 1.5rem;
-  }
-
-  .result-icon {
-    font-size: 2.5rem;
-  }
-
-  .result-value {
-    font-size: 1.5rem;
-  }
-
-  .start-flip-btn {
-    font-size: 1rem;
-    padding: 0.8rem 1.5rem;
-  }
-}
-
+/* Responsive Design - Mobile First */
+/* Mobile: 320px - 480px (xs to sm breakpoint) */
 @media (max-width: 480px) {
   .coin-flip-animation {
-    padding: 1.5rem 0.5rem;
+    padding: 1.5rem 0.75rem;
+    min-height: 400px;
     border-radius: 12px;
   }
 
   .animation-container {
     width: 200px;
     height: 200px;
+    margin-bottom: 1.5rem;
   }
 
   .coin-3d-flip {
@@ -420,10 +376,69 @@
     font-size: 2rem;
   }
 
+  .coin-text {
+    font-size: 0.65rem;
+  }
+
+  .status-text {
+    font-size: 1rem;
+  }
+
+  .result-card {
+    padding: 1.25rem;
+  }
+
+  .result-icon {
+    font-size: 2rem;
+  }
+
+  .result-value {
+    font-size: 1.25rem;
+  }
+
+  .start-flip-btn {
+    font-size: 1rem;
+    padding: 0.75rem 1.25rem;
+    min-height: 44px; /* Touch-friendly */
+  }
+
   .progress-container {
     width: 150px;
   }
 }
+
+/* Tablet: 481px - 768px (sm to md breakpoint) */
+@media (min-width: 481px) and (max-width: 768px) {
+  .coin-flip-animation {
+    padding: 2rem 1rem;
+    min-height: 450px;
+  }
+
+  .animation-container {
+    width: 250px;
+    height: 250px;
+  }
+
+  .coin-3d-flip {
+    width: 125px;
+    height: 125px;
+  }
+
+  .coin-symbol {
+    font-size: 2.5rem;
+  }
+
+  .status-text {
+    font-size: 1.15rem;
+  }
+
+  .result-value {
+    font-size: 1.75rem;
+  }
+}
+
+/* Desktop: 769px+ (md breakpoint and above) */
+/* Default styles at top of file apply here (300px container) */
 
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {

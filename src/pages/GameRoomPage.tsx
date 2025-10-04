@@ -176,16 +176,16 @@ export const GameRoomPage: React.FC = () => {
 
   if (!connected) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="max-w-md mx-auto p-8 glass-card text-center">
-          <h2 className="text-2xl font-bold mb-6">
+      <div className="flex items-center justify-center min-h-[60vh] px-4">
+        <div className="max-w-md mx-auto p-6 sm:p-8 glass-card text-center">
+          <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">
             Connect Your Wallet to Join Game
           </h2>
-          <p className="text-base-content/70 mb-6">
+          <p className="text-sm sm:text-base text-base-content/70 mb-4 sm:mb-6">
             You've been invited to join game #{gameId}. Connect your wallet to participate!
           </p>
           <div className="flex justify-center">
-            <WalletMultiButton className="!btn !btn-primary !btn-lg" />
+            <WalletMultiButton className="!btn !btn-primary !btn-md sm:!btn-lg" />
           </div>
           <div className="mt-4">
             <button onClick={handleBackToLobby} className="link link-primary text-sm">
@@ -226,27 +226,27 @@ export const GameRoomPage: React.FC = () => {
   // Show Join Game interface for non-players
   if (canJoin && !isPlayer) {
     return (
-      <div>
-        <div className="mb-6">
+      <div className="px-4">
+        <div className="mb-4 sm:mb-6">
           <button onClick={handleBackToLobby} className="btn btn-ghost btn-sm mb-2">
             <ArrowLeft className="w-4 h-4 mr-1" />
             Back to Lobby
           </button>
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-2xl sm:text-3xl font-bold">
             Game Room #{gameId}
           </h1>
         </div>
 
         <div className="flex items-center justify-center min-h-[50vh]">
-          <div className="max-w-md mx-auto p-8 glass-card text-center">
-            <div className="text-6xl mb-6">🎮</div>
-            <h2 className="text-2xl font-bold mb-4">
+          <div className="max-w-md mx-auto p-6 sm:p-8 glass-card text-center">
+            <div className="text-5xl sm:text-6xl mb-4 sm:mb-6">🎮</div>
+            <h2 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">
               You've Been Invited to Join!
             </h2>
 
             {gameData && (
-              <div className="bg-base-200 rounded-lg p-4 mb-6 text-left">
-                <div className="space-y-2">
+              <div className="bg-base-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 text-left">
+                <div className="space-y-2 text-sm sm:text-base">
                   <div className="flex justify-between">
                     <span className="text-base-content/70">Game ID:</span>
                     <span className="font-mono">#{gameId}</span>
@@ -267,14 +267,14 @@ export const GameRoomPage: React.FC = () => {
               </div>
             )}
 
-            <p className="text-base-content/70 mb-6">
+            <p className="text-sm sm:text-base text-base-content/70 mb-4 sm:mb-6">
               Join this coin flip game to compete for the pot!
             </p>
 
             <button
               onClick={handleJoinGame}
               disabled={joiningGame}
-              className="btn btn-primary btn-lg gap-2"
+              className="btn btn-primary btn-md sm:btn-lg gap-2 min-h-[44px]"
             >
               {joiningGame ? (
                 <>
@@ -289,7 +289,7 @@ export const GameRoomPage: React.FC = () => {
               )}
             </button>
 
-            <div className="mt-6 text-sm text-base-content/60">
+            <div className="mt-4 sm:mt-6 text-xs sm:text-sm text-base-content/60">
               <p>By joining, you agree to match the bet amount.</p>
               <p className="mt-2">House takes a 7% fee from the winner.</p>
             </div>
@@ -319,7 +319,7 @@ export const GameRoomPage: React.FC = () => {
                   <ArrowLeft className="w-4 h-4 mr-1" />
                   Back to Lobby
                 </button>
-                <h1 className="text-3xl font-bold">
+                <h1 className="text-2xl sm:text-3xl font-bold">
                   Game Room #{gameId}
                 </h1>
               </div>
@@ -364,7 +364,7 @@ export const GameRoomPage: React.FC = () => {
                   <ArrowLeft className="w-4 h-4 mr-1" />
                   Back to Lobby
                 </button>
-                <h1 className="text-3xl font-bold">
+                <h1 className="text-2xl sm:text-3xl font-bold">
                   Game Room #{gameId}
                 </h1>
               </div>

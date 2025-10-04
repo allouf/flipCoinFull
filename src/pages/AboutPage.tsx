@@ -8,13 +8,13 @@ export const AboutPage: React.FC = () => {
   return (
     <div className="bg-gradient-to-br from-base-100 to-base-200">
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto px-4">
         {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold mb-4 gradient-bg bg-clip-text text-transparent">
+        <div className="text-center mb-8 sm:mb-12">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 gradient-bg bg-clip-text text-transparent">
             About Solana Coin Flipper
           </h1>
-          <p className="text-xl text-base-content/70">
+          <p className="text-base sm:text-lg md:text-xl text-base-content/70">
             The Premier Blockchain-Based Coin Flipping Game on Solana
           </p>
         </div>
@@ -326,19 +326,19 @@ export const AboutPage: React.FC = () => {
 
         {/* Call to Action */}
         <div className="card bg-gradient-to-r from-primary to-secondary text-primary-content">
-          <div className="card-body text-center">
-            <h2 className="card-title text-2xl mb-4 justify-center">Ready to Play?</h2>
-            <p className="mb-6">Test your luck in a provably fair, blockchain-powered coin flip!</p>
-            <div className="card-actions justify-center gap-4">
+          <div className="card-body text-center p-6 sm:p-8">
+            <h2 className="card-title text-xl sm:text-2xl mb-3 sm:mb-4 justify-center">Ready to Play?</h2>
+            <p className="mb-4 sm:mb-6 text-sm sm:text-base">Test your luck in a provably fair, blockchain-powered coin flip!</p>
+            <div className="card-actions justify-center gap-3 sm:gap-4 flex-col sm:flex-row">
               <button
                 onClick={() => navigate('/')}
-                className="btn btn-lg bg-base-100 text-base-content hover:bg-base-200"
+                className="btn btn-md sm:btn-lg bg-base-100 text-base-content hover:bg-base-200 w-full sm:w-auto min-h-[44px]"
               >
                 Start Playing
               </button>
               <button
                 onClick={() => navigate('/lobby')}
-                className="btn btn-lg btn-outline border-base-100 text-base-100 hover:bg-base-100 hover:text-base-content"
+                className="btn btn-md sm:btn-lg btn-outline border-base-100 text-base-100 hover:bg-base-100 hover:text-base-content w-full sm:w-auto min-h-[44px]"
               >
                 Browse Games
               </button>

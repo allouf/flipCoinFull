@@ -58,10 +58,10 @@ export const StatsPage: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold gradient-bg bg-clip-text text-transparent">
+        <h1 className="text-2xl sm:text-3xl font-bold gradient-bg bg-clip-text text-transparent">
           Statistics
         </h1>
-        <p className="text-base-content/60 mt-1">
+        <p className="text-sm sm:text-base text-base-content/60 mt-1">
           Your gaming performance and statistics
         </p>
       </div>

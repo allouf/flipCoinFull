@@ -2,6 +2,8 @@ import React, { useEffect, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 // import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { WalletName } from '@solana/wallet-adapter-base';
+import { isMobile } from '../utils/mobileDetection';
+import { openMobileWallet, WalletType } from '../utils/mobileWalletDeepLink';
 
 interface WalletModalProps {
   visible: boolean;
@@ -152,6 +154,86 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 {isConnecting ? 'Connecting to wallet...' : 'Connecting...'}
               </p>
             </div>
+          )}
+
+          {/* Mobile Wallet Options */}
+          {isMobile() && !connecting && !isConnecting && (
+            <>
+              <div className="text-xs font-medium text-base-content/60 mb-2">Mobile Wallets</div>
+              <button
+                type="button"
+                onClick={() => {
+                  const returnUrl = window.location.href;
+                  openMobileWallet('phantom', { returnUrl, cluster: 'devnet' });
+                }}
+                className="w-full p-4 rounded-lg border border-base-300/50 hover:border-primary/50 hover:bg-base-300/30 transition-all duration-200 text-left group"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center">
+                    <span className="text-white font-bold text-lg">P</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-base-content group-hover:text-primary transition-colors">
+                      Phantom Mobile
+                    </div>
+                    <div className="text-sm text-base-content/60">
+                      Open in Phantom app
+                    </div>
+                  </div>
+                  <svg
+                    className="w-5 h-5 text-base-content/40 group-hover:text-primary transition-colors"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                    />
+                  </svg>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const returnUrl = window.location.href;
+                  openMobileWallet('solflare', { returnUrl, cluster: 'devnet' });
+                }}
+                className="w-full p-4 rounded-lg border border-base-300/50 hover:border-primary/50 hover:bg-base-300/30 transition-all duration-200 text-left group"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center">
+                    <span className="text-white font-bold text-lg">S</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-base-content group-hover:text-primary transition-colors">
+                      Solflare Mobile
+                    </div>
+                    <div className="text-sm text-base-content/60">
+                      Open in Solflare app
+                    </div>
+                  </div>
+                  <svg
+                    className="w-5 h-5 text-base-content/40 group-hover:text-primary transition-colors"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                    />
+                  </svg>
+                </div>
+              </button>
+
+              <div className="divider text-xs text-base-content/60">Browser Wallets</div>
+            </>
           )}
 
           {wallets.filter((wallet) => wallet.readyState !== 'NotDetected').map((wallet) => (
