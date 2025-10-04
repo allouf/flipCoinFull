@@ -60,13 +60,16 @@ export const Navigation: React.FC = () => {
   ];
 
   return (
-    <div className="navbar bg-base-300/50 backdrop-blur-sm border-b border-base-300/20 sticky top-0 z-50">
+    <div className="navbar bg-base-300/50 backdrop-blur-sm border-b border-base-300/20 sticky top-0 z-50 px-2 sm:px-4">
       {/* Logo/Brand + Navigation Links */}
-      <div className="navbar-start gap-4">
-        <NavLink to="/lobby" className="btn btn-ghost text-xl font-bold">
-          <Coins className="w-6 h-6 text-primary" />
-          <span className="gradient-bg bg-clip-text text-transparent">
+      <div className="navbar-start gap-1 sm:gap-4">
+        <NavLink to="/lobby" className="btn btn-ghost btn-sm sm:btn-md text-base sm:text-xl font-bold px-2 sm:px-4">
+          <Coins className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+          <span className="gradient-bg bg-clip-text text-transparent hidden xs:inline">
             Fair Coin Flipper
+          </span>
+          <span className="gradient-bg bg-clip-text text-transparent xs:hidden">
+            Flip
           </span>
         </NavLink>
 
@@ -93,7 +96,7 @@ export const Navigation: React.FC = () => {
       </div>
 
       {/* Right Side - Network & Wallet */}
-      <div className="navbar-end gap-2">
+      <div className="navbar-end gap-1 sm:gap-2">
         {/* Network Selector */}
         <div className="hidden md:block">
           <NetworkSelector />
@@ -101,11 +104,11 @@ export const Navigation: React.FC = () => {
 
         {/* Wallet Balance (Only when connected) */}
         {connected && balance !== null && (
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-success/10 to-primary/10 border border-success/20 rounded-lg shadow-sm">
+          <div className="hidden sm:flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-gradient-to-r from-success/10 to-primary/10 border border-success/20 rounded-lg shadow-sm">
             <Wallet className="w-4 h-4 text-success" />
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-base-content/60">Balance:</span>
-              <span className="text-sm font-bold font-mono text-success">
+              <span className="text-xs sm:text-sm font-bold font-mono text-success">
                 {balance.toFixed(4)} SOL
               </span>
             </div>
@@ -113,7 +116,7 @@ export const Navigation: React.FC = () => {
         )}
 
         {/* Wallet Connect Button */}
-        <WalletMultiButton className="!btn !btn-primary !rounded-lg !font-semibold !px-6 !shadow-md !hover:shadow-lg !transition-all" />
+        <WalletMultiButton className="!btn !btn-primary !btn-sm sm:!btn-md !rounded-lg !font-semibold !px-3 sm:!px-6 !shadow-md !hover:shadow-lg !transition-all" />
 
         {/* Mobile Menu */}
         <div className="dropdown dropdown-end lg:hidden ml-2">

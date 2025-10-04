@@ -42,23 +42,23 @@ export const AvailableGames: React.FC<AvailableGamesProps> = ({ availableGames, 
         <p className="text-base-content/60 mb-6">
           Be the first to create a game! Other players can then join and compete against you.
         </p>
-        <div className="flex justify-center">
-          <div className="stats stats-vertical lg:stats-horizontal bg-base-200">
-            <div className="stat">
+        <div className="flex justify-center w-full px-4">
+          <div className="stats stats-vertical sm:stats-horizontal bg-base-200 w-full max-w-md">
+            <div className="stat place-items-center sm:place-items-start">
               <div className="stat-figure text-primary">
-                <Users className="w-8 h-8" />
+                <Users className="w-6 h-6 sm:w-8 sm:h-8" />
               </div>
-              <div className="stat-title">Active Players</div>
-              <div className="stat-value text-primary">{stats?.activeGames || 0}</div>
-              <div className="stat-desc">Currently playing</div>
+              <div className="stat-title text-xs sm:text-sm">Active Players</div>
+              <div className="stat-value text-primary text-2xl sm:text-3xl">{stats?.activeGames || 0}</div>
+              <div className="stat-desc text-xs">Currently playing</div>
             </div>
-            <div className="stat">
+            <div className="stat place-items-center sm:place-items-start">
               <div className="stat-figure text-secondary">
-                <Clock className="w-8 h-8" />
+                <Clock className="w-6 h-6 sm:w-8 sm:h-8" />
               </div>
-              <div className="stat-title">Waiting Games</div>
-              <div className="stat-value text-secondary">{availableGames?.length || 0}</div>
-              <div className="stat-desc">Ready to join</div>
+              <div className="stat-title text-xs sm:text-sm">Waiting Games</div>
+              <div className="stat-value text-secondary text-2xl sm:text-3xl">{availableGames?.length || 0}</div>
+              <div className="stat-desc text-xs">Ready to join</div>
             </div>
           </div>
         </div>
@@ -70,21 +70,21 @@ export const AvailableGames: React.FC<AvailableGamesProps> = ({ availableGames, 
     <div className="space-y-4">
       {/* Stats */}
       {stats && (
-        <div className="stats stats-horizontal bg-base-200 mb-4">
-          <div className="stat">
+        <div className="stats stats-vertical sm:stats-horizontal bg-base-200 mb-4 w-full">
+          <div className="stat place-items-center sm:place-items-start">
             <div className="stat-figure text-primary">
-              <Users className="w-8 h-8" />
+              <Users className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
-            <div className="stat-title">Total Games</div>
-            <div className="stat-value text-primary">{availableGames?.length || 0}</div>
+            <div className="stat-title text-xs sm:text-sm">Total Games</div>
+            <div className="stat-value text-primary text-2xl sm:text-3xl">{availableGames?.length || 0}</div>
           </div>
-          <div className="stat">
+          <div className="stat place-items-center sm:place-items-start">
             <div className="stat-figure text-secondary">
-              <Coins className="w-8 h-8" />
+              <Coins className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
-            <div className="stat-title">Total Pot</div>
-            <div className="stat-value text-secondary">
-              {availableGames?.reduce((sum, game) => sum + (game.betAmount * 2), 0).toFixed(2)} SOL
+            <div className="stat-title text-xs sm:text-sm">Total Pot</div>
+            <div className="stat-value text-secondary text-lg sm:text-3xl">
+              {availableGames?.reduce((sum, game) => sum + (game.betAmount * 2), 0).toFixed(2)} <span className="text-sm sm:text-base">SOL</span>
             </div>
           </div>
         </div>

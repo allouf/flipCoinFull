@@ -79,18 +79,25 @@ export const Tabs: React.FC<TabsProps> = ({
   ];
 
   return (
-    <div className="tabs tabs-boxed">
+    <div className="tabs tabs-boxed overflow-x-auto flex-nowrap">
       {tabs.map((tab) => (
         <button
           key={tab.value}
-          className={`tab gap-2 ${activeTab === tab.value ? 'tab-active' : ''}`}
+          className={`tab gap-1 whitespace-nowrap ${activeTab === tab.value ? 'tab-active' : ''}`}
           onClick={() => onTabChange(tab.value)}
         >
-          {tab.icon}
-          <span>
-            {tab.label}
-            {tab.showCount && ` (${tabCounts[tab.value] || 0})`}
+          <span className="flex items-center gap-1">
+            {tab.icon}
+            {/* Show full label on sm+, abbreviated on xs */}
+            <span className="hidden sm:inline">{tab.label}</span>
+            <span className="sm:hidden">{tab.label.slice(0, 3)}</span>
           </span>
+          {/* Show count badge */}
+          {tab.showCount && tabCounts[tab.value] > 0 && (
+            <span className="badge badge-xs sm:badge-sm">
+              {tabCounts[tab.value]}
+            </span>
+          )}
         </button>
       ))}
     </div>

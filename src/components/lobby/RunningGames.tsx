@@ -28,22 +28,22 @@ export const RunningGames: React.FC<RunningGamesProps> = ({ runningGames, stats,
   return (
     <div className="space-y-4">
       {/* Stats */}
-      <div className="stats stats-horizontal bg-base-200 w-full">
-        <div className="stat">
+      <div className="stats stats-vertical sm:stats-horizontal bg-base-200 w-full">
+        <div className="stat place-items-center sm:place-items-start">
           <div className="stat-figure text-primary">
-            <Play className="w-6 h-6" />
+            <Play className="w-6 h-6 sm:w-8 sm:h-8" />
           </div>
-          <div className="stat-title">Active Games</div>
-          <div className="stat-value text-primary">{runningGames.length}</div>
-          <div className="stat-desc">Currently running</div>
+          <div className="stat-title text-xs sm:text-sm">Active Games</div>
+          <div className="stat-value text-primary text-2xl sm:text-3xl">{runningGames.length}</div>
+          <div className="stat-desc text-xs">Currently running</div>
         </div>
-        <div className="stat">
+        <div className="stat place-items-center sm:place-items-start">
           <div className="stat-figure text-secondary">
-            <Eye className="w-6 h-6" />
+            <Eye className="w-6 h-6 sm:w-8 sm:h-8" />
           </div>
-          <div className="stat-title">Spectators</div>
-          <div className="stat-value text-secondary">0</div>
-          <div className="stat-desc">Watching games</div>
+          <div className="stat-title text-xs sm:text-sm">Spectators</div>
+          <div className="stat-value text-secondary text-2xl sm:text-3xl">0</div>
+          <div className="stat-desc text-xs">Watching games</div>
         </div>
       </div>
 
