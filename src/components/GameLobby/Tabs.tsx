@@ -88,22 +88,28 @@ export const Tabs: React.FC<TabsProps> = ({
   };
 
   return (
-    <div className="tabs tabs-boxed overflow-x-auto flex-nowrap p-1">
+    <div className="tabs tabs-boxed flex-nowrap p-1">
       {tabs.map((tab) => (
         <button
           key={tab.value}
-          className={`tab gap-1 flex-nowrap px-2 sm:px-4 text-xs sm:text-sm ${activeTab === tab.value ? 'tab-active' : ''}`}
+          className={`
+            tab flex-1 min-w-0
+            flex-col md:flex-row gap-0 md:gap-2
+            px-1.5 md:px-4 py-1.5 md:py-2
+            ${activeTab === tab.value ? 'tab-active' : ''}
+          `}
           onClick={() => onTabChange(tab.value)}
         >
-          <span className="flex items-center gap-1 flex-nowrap">
+          {/* Label with icon - stacked on mobile, horizontal on desktop */}
+          <span className="flex items-center gap-0.5 md:gap-1 flex-nowrap">
             {tab.icon}
             {/* Show full label on md+, abbreviated on smaller screens */}
-            <span className="hidden md:inline whitespace-nowrap">{tab.label}</span>
-            <span className="md:hidden whitespace-nowrap">{mobileLabels[tab.value]}</span>
+            <span className="hidden md:inline whitespace-nowrap text-sm">{tab.label}</span>
+            <span className="md:hidden whitespace-nowrap text-[10px] leading-none">{mobileLabels[tab.value]}</span>
           </span>
-          {/* Show count badge */}
+          {/* Show count badge - below label on mobile, beside on desktop */}
           {tab.showCount && (tabCounts[tab.value] ?? 0) > 0 && (
-            <span className="badge badge-xs">
+            <span className="badge badge-xs mt-0.5 md:mt-0 text-[9px] md:text-xs h-3 md:h-auto min-h-0 md:min-h-[1rem] px-1 md:px-2">
               {tabCounts[tab.value] ?? 0}
             </span>
           )}
