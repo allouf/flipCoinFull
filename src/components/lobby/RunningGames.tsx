@@ -60,12 +60,18 @@ export const RunningGames: React.FC<RunningGamesProps> = ({ runningGames, stats,
           return (
             <div key={game.id} className="card bg-base-100 shadow-xl">
               <div className="card-body">
-                <div className="flex justify-between items-start mb-4">
+                <div className="flex justify-between items-start mb-2">
                   <h3 className="card-title text-sm">Game #{game.id.slice(-8)}</h3>
                   <div className="badge badge-success badge-sm gap-1">
                     <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
                     Live
                   </div>
+                </div>
+
+                {/* Game Info */}
+                <div className="text-xs text-base-content/60 mb-4">
+                  {game.creatorId === userAddress ? 'Created by you' : `Created by #${game.creatorId.slice(-6)}`} •
+                  {new Date(game.createdAt).toLocaleDateString()}
                 </div>
 
                 {/* Players */}

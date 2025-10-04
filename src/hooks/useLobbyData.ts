@@ -35,6 +35,8 @@ export interface RunningGameData {
   totalPot: number;
   status: string;
   phase: string;
+  createdAt: string;
+  creatorId: string;
 }
 
 export interface HistoryGameData {
@@ -273,6 +275,8 @@ export const useLobbyData = () => {
           totalPot: (room.betAmount.toNumber() * 2) / 1e9, // Both players' bets in SOL
           status: mapRoomStatusToString(room.status),
           phase,
+          createdAt: new Date(room.createdAt.toNumber() * 1000).toISOString(),
+          creatorId: room.playerA.toString(),
         };
       });
   }, [allRooms]);
