@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { Play, Clock, Trophy, X, ExternalLink, User, Coins, Info } from 'lucide-react';
+import { Play, Clock, Trophy, X, ExternalLink, User, Users, Coins, Info } from 'lucide-react';
 import { useAnchorProgram } from '../../hooks/useAnchorProgram';
 
 interface MyGamesProps {
@@ -70,152 +70,150 @@ export const MyGames: React.FC<MyGamesProps> = ({ myGames, loading }) => {
     );
   }
 
+  // Calculate counts for each filter
+  const allCount = myGames?.length || 0;
+  const createdCount = myGames?.filter(g => g.role === 'creator').length || 0;
+  const joinedCount = myGames?.filter(g => g.role === 'joiner').length || 0;
+  const waitingCount = myGames?.filter(g => g.status === 'waiting').length || 0;
+
   return (
     <div className="space-y-4">
-      {/* Filter tabs */}
-      <div className="tabs tabs-boxed">
+      {/* Filter tabs - Mobile Optimized: 3-Row Design with Horizontal Scroll */}
+      <div className="tabs tabs-boxed overflow-x-auto overflow-y-visible flex-nowrap p-1" style={{ minHeight: '90px' }}>
         <button
-          className={`tab ${filter === 'all' ? 'tab-active' : ''}`}
+          className={`tab flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-2 ${filter === 'all' ? 'tab-active' : ''}`}
+          style={{ minWidth: '95px', minHeight: '75px' }}
           onClick={() => setFilter('all')}
         >
-          All
+          <Play size={20} className="sm:hidden" />
+          <Play size={16} className="hidden sm:inline" />
+          <span className="text-sm font-bold whitespace-nowrap">All</span>
+          <span className="badge badge-primary badge-xs">{allCount}</span>
         </button>
         <button
-          className={`tab ${filter === 'created' ? 'tab-active' : ''}`}
+          className={`tab flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-2 ${filter === 'created' ? 'tab-active' : ''}`}
+          style={{ minWidth: '95px', minHeight: '75px' }}
           onClick={() => setFilter('created')}
         >
-          Created by me
+          <User size={20} className="sm:hidden" />
+          <User size={16} className="hidden sm:inline" />
+          <span className="text-sm font-bold whitespace-nowrap">Created</span>
+          <span className="badge badge-secondary badge-xs">{createdCount}</span>
         </button>
         <button
-          className={`tab ${filter === 'joined' ? 'tab-active' : ''}`}
+          className={`tab flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-2 ${filter === 'joined' ? 'tab-active' : ''}`}
+          style={{ minWidth: '95px', minHeight: '75px' }}
           onClick={() => setFilter('joined')}
         >
-          Joined
+          <Users size={20} className="sm:hidden" />
+          <Users size={16} className="hidden sm:inline" />
+          <span className="text-sm font-bold whitespace-nowrap">Joined</span>
+          <span className="badge badge-accent badge-xs">{joinedCount}</span>
         </button>
         <button
-          className={`tab ${filter === 'waiting' ? 'tab-active' : ''}`}
+          className={`tab flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-2 ${filter === 'waiting' ? 'tab-active' : ''}`}
+          style={{ minWidth: '95px', minHeight: '75px' }}
           onClick={() => setFilter('waiting')}
         >
-          Waiting
+          <Clock size={20} className="sm:hidden" />
+          <Clock size={16} className="hidden sm:inline" />
+          <span className="text-sm font-bold whitespace-nowrap">Waiting</span>
+          <span className="badge badge-warning badge-xs">{waitingCount}</span>
         </button>
       </div>
 
-      {/* Games List */}
-      <div className="space-y-3">
+      {/* Games List - Mobile Optimized */}
+      <div className="space-y-2 sm:space-y-3">
         {filteredGames.map((game) => (
           <div key={game.id} className="card bg-base-100 shadow-lg">
-            <div className="card-body p-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-medium">Game #{game.id.slice(-8)}</h3>
-                    <div className={`badge badge-sm ${
-                      game.status === 'waiting' ? 'badge-warning' :
-                      game.status === 'active' ? 'badge-success' :
-                      game.status === 'completed' ? 'badge-info' : 'badge-error'
-                    }`}>
-                      {game.status}
-                    </div>
-                  </div>
-                  <div className="text-xs text-base-content/60">
-                    {game.role === 'creator' ? 'Created by you' : 'You joined'} • 
-                    {new Date(game.createdAt).toLocaleDateString()}
+            <div className="card-body p-3 sm:p-4 space-y-2 sm:space-y-3">
+              {/* Header: Game ID, Status Badge, Bet Amount */}
+              <div className="flex justify-between items-start gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                  <h3 className="font-medium text-sm sm:text-base whitespace-nowrap">Game #{game.id.slice(-8)}</h3>
+                  <div className={`badge badge-xs sm:badge-sm ${
+                    game.status === 'waiting' ? 'badge-warning' :
+                    game.status === 'active' ? 'badge-success' :
+                    game.status === 'completed' ? 'badge-info' : 'badge-error'
+                  }`}>
+                    {game.status}
                   </div>
                 </div>
-                
-                <div className="text-right">
-                  <div className="font-mono font-medium">{game.betAmount} SOL</div>
-                  <div className="text-xs text-base-content/60">
+
+                <div className="text-right flex-shrink-0">
+                  <div className="font-mono font-bold text-sm sm:text-base">{game.betAmount} SOL</div>
+                  <div className="text-[10px] sm:text-xs text-base-content/60">
                     {game.status === 'completed' && game.winner === 'you' ? (
-                      <span className="text-success">You won!</span>
+                      <span className="text-success font-semibold">Won!</span>
                     ) : game.status === 'completed' ? (
-                      <span className="text-error">You lost</span>
+                      <span className="text-error font-semibold">Lost</span>
                     ) : (
-                      `Pot: ${(game.betAmount * 2).toFixed(3)} SOL`
+                      <span>Pot: {(game.betAmount * 2).toFixed(2)}</span>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Game progress/actions */}
-              <div className="flex justify-between items-center mt-4">
-                <div className="flex items-center gap-2">
-                  {game.status === 'waiting' && (
-                    <>
-                      <Clock className="w-4 h-4 text-warning" />
-                      <span className="text-sm text-base-content/70">
-                        Waiting for opponent
-                      </span>
-                    </>
-                  )}
-                  {game.status === 'active' && (
-                    <>
-                      <Play className="w-4 h-4 text-success" />
-                      <span className="text-sm text-base-content/70">
-                        {game.phase === 'selection' ? 'Make your choice' : 'Waiting for reveal'}
-                      </span>
-                    </>
-                  )}
-                  {game.status === 'completed' && (
-                    <>
-                      <Trophy className="w-4 h-4 text-info" />
-                      <span className="text-sm text-base-content/70">
-                        Game completed
-                      </span>
-                    </>
-                  )}
-                </div>
+              {/* Info: Role & Date */}
+              <div className="text-[10px] sm:text-xs text-base-content/60 flex items-center gap-1.5">
+                <span className="font-medium">{game.role === 'creator' ? '👤 You created' : '🎮 You joined'}</span>
+                <span>•</span>
+                <span>{new Date(game.createdAt).toLocaleDateString()}</span>
+              </div>
 
-                <div className="flex gap-2">
-                  {game.status === 'waiting' && game.role === 'creator' && (
-                    <>
-                      <button
-                        className="btn btn-sm btn-primary"
-                        onClick={() => navigate(`/game/${game.id}`)}
-                        title="View your game room"
-                      >
-                        <Play className="w-3 h-3" />
-                        View Room
-                      </button>
-                      <button
-                        className="btn btn-sm btn-primary btn-outline"
-                        onClick={() => {
-                          const gameUrl = `${window.location.origin}/game/${game.id}`;
-                          navigator.clipboard.writeText(gameUrl);
-                          console.log('Game link copied:', gameUrl);
-                        }}
-                        title="Share this link with a friend to join"
-                      >
-                        📋 Copy Link
-                      </button>
-                      <button
-                        className="btn btn-sm btn-error btn-outline gap-1"
-                        onClick={() => handleCancelGame(game.id)}
-                        disabled={loading}
-                      >
-                        <X className="w-3 h-3" />
-                        Cancel
-                      </button>
-                    </>
-                  )}
-                  {game.status === 'active' && (
+              {/* Action buttons - Compact & Responsive */}
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                {game.status === 'waiting' && game.role === 'creator' && (
+                  <>
                     <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => handleContinueGame(game.id)}
+                      className="btn btn-xs btn-primary flex-1 min-w-[70px] sm:flex-none gap-1"
+                      onClick={() => navigate(`/game/${game.id}`)}
+                      title="View your game room"
+                    >
+                      <Play className="w-3 h-3" />
+                      <span className="text-[10px] sm:text-xs">View</span>
+                    </button>
+                    <button
+                      className="btn btn-xs btn-primary btn-outline flex-1 min-w-[70px] sm:flex-none gap-1"
+                      onClick={() => {
+                        const gameUrl = `${window.location.origin}/game/${game.id}`;
+                        navigator.clipboard.writeText(gameUrl);
+                        console.log('Game link copied:', gameUrl);
+                      }}
+                      title="Share this link with a friend to join"
+                    >
+                      <span>📋</span>
+                      <span className="text-[10px] sm:text-xs">Copy</span>
+                    </button>
+                    <button
+                      className="btn btn-xs btn-error btn-outline flex-1 min-w-[70px] sm:flex-none gap-1"
+                      onClick={() => handleCancelGame(game.id)}
                       disabled={loading}
                     >
-                      Continue Game
+                      <X className="w-3 h-3" />
+                      <span className="text-[10px] sm:text-xs">Cancel</span>
                     </button>
-                  )}
-                  {game.status === 'completed' && (
-                    <button
-                      className="btn btn-sm btn-outline"
-                      onClick={() => setSelectedGame(game)}
-                    >
-                      View Details
-                    </button>
-                  )}
-                </div>
+                  </>
+                )}
+                {game.status === 'active' && (
+                  <button
+                    className="btn btn-xs btn-primary w-full sm:w-auto"
+                    onClick={() => handleContinueGame(game.id)}
+                    disabled={loading}
+                  >
+                    <Play className="w-3 h-3" />
+                    <span className="text-xs">Continue Game</span>
+                  </button>
+                )}
+                {game.status === 'completed' && (
+                  <button
+                    className="btn btn-xs btn-outline w-full sm:w-auto"
+                    onClick={() => setSelectedGame(game)}
+                  >
+                    <Info className="w-3 h-3" />
+                    <span className="text-xs">Details</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>

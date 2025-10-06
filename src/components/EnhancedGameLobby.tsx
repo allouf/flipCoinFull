@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useGameDiscovery } from '../hooks/useGameDiscovery';
+import '../styles/EnhancedGameLobby.css';
 
 interface EnhancedGameLobbyProps {
   onJoinGame?: (gamePda: string, gameId: number) => void;
@@ -211,12 +212,40 @@ const EnhancedGameLobby: React.FC<EnhancedGameLobbyProps> = ({
     setCurrentPage(1);
   };
 
-  // Tab configuration
+  // Tab configuration with proper counts for each tab
+  const tabCounts = useMemo(() => {
+    return {
+      available: games.filter(game => {
+        const isWaitingForPlayer = game.status === 'WaitingForPlayer';
+        const isNotExpired = calculateTimeRemaining(game) > 0;
+        const isNotMyGame = !publicKey || game.playerA !== publicKey.toString();
+        return isWaitingForPlayer && isNotExpired && isNotMyGame;
+      }).length,
+      running: games.filter(game => {
+        const hasBothPlayers = game.status !== 'WaitingForPlayer' &&
+                             game.status !== 'Resolved' &&
+                             game.status !== 'TimedOut';
+        const isNotExpired = calculateTimeRemaining(game) > 0;
+        return hasBothPlayers && isNotExpired;
+      }).length,
+      'my-games': games.filter(game =>
+        publicKey && (
+          game.playerA === publicKey.toString()
+        ) && calculateTimeRemaining(game) > 0
+      ).length,
+      history: games.filter(game =>
+        publicKey && (
+          game.playerA === publicKey.toString()
+        ) && (game.status === 'Resolved' || game.status === 'TimedOut')
+      ).length
+    };
+  }, [games, publicKey, calculateTimeRemaining]);
+
   const tabs = [
-    { id: 'available' as TabType, label: 'Available', icon: '🎲', count: processedGames.length },
-    { id: 'running' as TabType, label: 'Running', icon: '⚡', count: processedGames.length },
-    { id: 'my-games' as TabType, label: 'My Games', icon: '👤', count: processedGames.length },
-    { id: 'history' as TabType, label: 'History', icon: '📊', count: processedGames.length }
+    { id: 'available' as TabType, label: 'Available', icon: '🎲', count: tabCounts.available },
+    { id: 'running' as TabType, label: 'Running', icon: '⚡', count: tabCounts.running },
+    { id: 'my-games' as TabType, label: 'My Games', icon: '👤', count: tabCounts['my-games'] },
+    { id: 'history' as TabType, label: 'History', icon: '📊', count: tabCounts.history }
   ];
 
   return (
@@ -263,23 +292,21 @@ const EnhancedGameLobby: React.FC<EnhancedGameLobbyProps> = ({
         )}
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="lobby-tabs">
+      {/* Navigation Tabs - Mobile Optimized: 3-Row Design with Horizontal Scroll */}
+      <div className="lobby-tabs" style={{ minHeight: '90px', overflowX: 'auto', overflowY: 'visible' }}>
         {tabs.map(tab => {
           const isActive = activeTab === tab.id;
-          const count = activeTab === tab.id ? processedGames.length : 0;
-          
+
           return (
             <button
               key={tab.id}
               className={`lobby-tab ${isActive ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.id)}
+              style={{ minWidth: '95px', minHeight: '75px' }}
             >
               <span className="tab-icon">{tab.icon}</span>
               <span className="tab-label">{tab.label}</span>
-              {isActive && (
-                <span className="tab-count">{count}</span>
-              )}
+              <span className="tab-count">{tab.count}</span>
             </button>
           );
         })}

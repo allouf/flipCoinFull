@@ -1,9 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Coins, Shield, Trophy, Clock, AlertCircle, DollarSign, Zap, Lock, ChevronRight } from 'lucide-react';
+import { Coins, Shield, Trophy, Clock, AlertCircle, DollarSign, Zap, Lock, ChevronRight, Copy, Check } from 'lucide-react';
 
 export const AboutPage: React.FC = () => {
   const navigate = useNavigate();
+  const [copied, setCopied] = useState(false);
+
+  const programId = '7CCbhfJx5fUPXZGRu9bqvztBiQHpYPaNL1rGFy9hrcf6';
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(programId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   return (
     <div className="bg-gradient-to-br from-base-100 to-base-200">
@@ -209,9 +222,21 @@ export const AboutPage: React.FC = () => {
               <div>
                 <h3 className="font-bold mb-3">Smart Contract</h3>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                     <span className="text-base-content/70">Program ID:</span>
-                    <span className="font-mono text-xs">7CCbhf...hrcf6</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs truncate max-w-[200px] sm:max-w-none" title={programId}>
+                        <span className="sm:hidden">{programId.slice(0, 12)}...{programId.slice(-6)}</span>
+                        <span className="hidden sm:inline">{programId.slice(0, 8)}...{programId.slice(-6)}</span>
+                      </span>
+                      <button
+                        onClick={handleCopy}
+                        className="btn btn-xs btn-ghost gap-1"
+                        title="Copy full address"
+                      >
+                        {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-base-content/70">Network:</span>
@@ -346,12 +371,44 @@ export const AboutPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="text-center mt-12 pb-8">
-          <p className="text-sm text-base-content/60">
-            Program ID: 7CCbhfJx5fUPXZGRu9bqvztBiQHpYPaNL1rGFy9hrcf6
-          </p>
-          <p className="text-sm text-base-content/60 mt-2">
+        {/* Footer - Mobile Optimized */}
+        <div className="mt-8 sm:mt-12 pb-8">
+          {/* Program ID Card */}
+          <div className="card bg-base-200 shadow-sm mb-4">
+            <div className="card-body p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div className="flex-1 min-w-0 w-full sm:w-auto">
+                  <div className="text-xs sm:text-sm font-semibold text-base-content/60 mb-1">
+                    Smart Contract Program ID:
+                  </div>
+                  <div className="font-mono text-xs sm:text-sm break-all sm:break-normal">
+                    {/* Show truncated on mobile, full on desktop */}
+                    <span className="sm:hidden">{programId.slice(0, 20)}...{programId.slice(-8)}</span>
+                    <span className="hidden sm:inline">{programId}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={handleCopy}
+                  className="btn btn-xs sm:btn-sm btn-primary gap-1 flex-shrink-0 w-full sm:w-auto"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="text-xs sm:text-sm">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="text-xs sm:text-sm">Copy Address</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Info Text */}
+          <p className="text-xs sm:text-sm text-base-content/60 text-center">
             Built on Solana • Open Source • Auditable
           </p>
         </div>

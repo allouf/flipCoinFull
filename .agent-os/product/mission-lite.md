@@ -1,5 +1,5 @@
 # Product Mission (Lite)
 
-Solana Coin Flipper is a transparent, on-chain betting platform that enables users to participate in fair 1v1 coin flip gambling matches with instant crypto payouts, leveraging Solana's speed and low fees to deliver a seamless betting experience.
+FlipCoin is a provably fair blockchain gaming platform on Solana that enables users to participate in transparent 1v1 betting games with instant crypto payouts, leveraging client-side commitment storage to ensure even the house cannot cheat.
 
-This platform serves crypto gamblers and Solana users who want provably fair, instant betting with minimal fees. Unlike traditional gambling sites or expensive Ethereum alternatives, Solana Coin Flipper executes every bet on-chain for complete transparency while charging less than $0.01 per transaction, making it accessible for all bet sizes.
+This platform serves both casual gamers and crypto enthusiasts who want genuinely fair betting with transparent odds. Unlike traditional gambling sites where the house can see your choice, FlipCoin stores your commitment exclusively on your device (IndexedDB + localStorage) - the backend literally cannot access your secrets. Combined with Solana's sub-cent fees and sub-second finality, this creates the most transparent and affordable peer-to-peer betting experience available. Future expansion to mobile app and additional game types (Rock-Paper-Scissors, Dice) planned.

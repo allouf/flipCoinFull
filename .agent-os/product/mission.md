@@ -104,10 +104,31 @@ Unlike casino-style games played against the house, we enable direct peer-to-pee
 
 ## Development Status
 
-**Current Phase:** Phase 1 - Complete Simple Flow
+**Current Phase:** Phase 1 - Complete Simple Flow (Test Phase)
 **Network:** Solana Devnet
-**Smart Contract:** Deployed and tested
-**Focus:** End-to-end testing and bug fixes for production readiness
+**Smart Contract:** Deployed and tested on devnet
+**Deployment:**
+- Frontend: Vercel (https://flipcoin.vercel.app)
+- Backend: Render (WebSocket server)
+- Database: Neon (PostgreSQL)
+**Focus:** End-to-end testing and bug fixes for mainnet readiness
+
+## Future Vision
+
+**Short-term (Phase 2-4):**
+- Deploy to Solana Mainnet after security audit
+- Add leaderboards and social sharing features
+- Implement mobile-responsive optimizations
+
+**Mid-term (Phase 6):**
+- Launch React Native mobile app for iOS and Android
+- Push notifications for game invites
+- Biometric authentication for quick access
+
+**Long-term (Phase 7):**
+- Expand to multi-game platform (Rock-Paper-Scissors, Dice, Card games)
+- Tournament system with scheduled competitions
+- Multi-token support (USDC, SPL tokens)
 
 ## Target Metrics
 

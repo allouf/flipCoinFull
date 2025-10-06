@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { Trophy, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
+import { Trophy, TrendingUp, TrendingDown, Calendar, ExternalLink } from 'lucide-react';
 
 interface GameHistoryProps {
   gameHistory?: any[];
@@ -80,12 +80,12 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ gameHistory, loading }
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4 items-center justify-between">
-        <div className="flex gap-2">
+      {/* Filters - Mobile Optimized */}
+      <div className="flex flex-wrap gap-2 sm:gap-4 items-center justify-between">
+        <div className="flex gap-1.5 sm:gap-2 flex-wrap">
           <div className="form-control">
             <select
-              className="select select-sm select-bordered h-10"
+              className="select select-xs sm:select-sm select-bordered min-h-[32px] sm:h-10 text-xs sm:text-sm"
               value={filter}
               onChange={(e) => setFilter(e.target.value as any)}
             >
@@ -97,7 +97,7 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ gameHistory, loading }
 
           <div className="form-control">
             <select
-              className="select select-sm select-bordered h-10"
+              className="select select-xs sm:select-sm select-bordered min-h-[32px] sm:h-10 text-xs sm:text-sm"
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value as any)}
             >
@@ -109,99 +109,116 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ gameHistory, loading }
           </div>
         </div>
 
-        <div className="text-sm text-base-content/60">
-          Showing {filteredHistory.length} games
+        <div className="text-xs sm:text-sm text-base-content/60 w-full sm:w-auto text-center sm:text-left mt-1 sm:mt-0">
+          Showing {filteredHistory.length} {filteredHistory.length === 1 ? 'game' : 'games'}
         </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="stats stats-horizontal bg-base-200 w-full">
-        <div className="stat">
+      {/* Summary Stats - Mobile Optimized */}
+      <div className="stats stats-vertical sm:stats-horizontal bg-base-200 w-full shadow-sm">
+        <div className="stat py-3 sm:py-4">
           <div className="stat-figure text-success">
-            <TrendingUp className="w-6 h-6" />
+            <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div className="stat-title">Total Wins</div>
-          <div className="stat-value text-success">{stats.totalWins}</div>
-          <div className="stat-desc">{stats.winRate}% win rate</div>
+          <div className="stat-title text-xs sm:text-sm">Total Wins</div>
+          <div className="stat-value text-success text-2xl sm:text-3xl">{stats.totalWins}</div>
+          <div className="stat-desc text-xs">{stats.winRate}% win rate</div>
         </div>
 
-        <div className="stat">
+        <div className="stat py-3 sm:py-4">
           <div className="stat-figure text-error">
-            <TrendingDown className="w-6 h-6" />
+            <TrendingDown className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div className="stat-title">Total Losses</div>
-          <div className="stat-value text-error">{stats.totalLosses}</div>
-          <div className="stat-desc">Net: {stats.netAmount.toFixed(3)} SOL</div>
+          <div className="stat-title text-xs sm:text-sm">Total Losses</div>
+          <div className="stat-value text-error text-2xl sm:text-3xl">{stats.totalLosses}</div>
+          <div className="stat-desc text-xs">Net: {stats.netAmount.toFixed(2)} SOL</div>
         </div>
 
-        <div className="stat">
+        <div className="stat py-3 sm:py-4">
           <div className="stat-figure text-info">
-            <Calendar className="w-6 h-6" />
+            <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div className="stat-title">Games Played</div>
-          <div className="stat-value text-info">{filteredHistory.length}</div>
-          <div className="stat-desc">In selected period</div>
+          <div className="stat-title text-xs sm:text-sm">Games Played</div>
+          <div className="stat-value text-info text-2xl sm:text-3xl">{filteredHistory.length}</div>
+          <div className="stat-desc text-xs">In selected period</div>
         </div>
       </div>
 
-      {/* History List */}
+      {/* History List - Mobile Optimized */}
       <div className="space-y-2">
         {filteredHistory.map((game) => (
-          <div 
-            key={game.id} 
+          <div
+            key={game.id}
             className={`card bg-base-100 shadow-sm border-l-4 ${
               game.result === 'win' ? 'border-l-success' : 'border-l-error'
             }`}
           >
-            <div className="card-body p-4">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-full ${
-                    game.result === 'win' ? 'bg-success/20 text-success' : 'bg-error/20 text-error'
-                  }`}>
-                    {game.result === 'win' ? (
-                      <Trophy className="w-4 h-4" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4" />
-                    )}
+            <div className="card-body p-3 sm:p-4 space-y-2">
+              {/* Header: Icon + Game Info + Net Amount */}
+              <div className="flex items-start gap-2">
+                {/* Win/Loss Icon */}
+                <div className={`p-1.5 sm:p-2 rounded-full flex-shrink-0 ${
+                  game.result === 'win' ? 'bg-success/20 text-success' : 'bg-error/20 text-error'
+                }`}>
+                  {game.result === 'win' ? (
+                    <Trophy className="w-3 h-3 sm:w-4 sm:h-4" />
+                  ) : (
+                    <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4" />
+                  )}
+                </div>
+
+                {/* Game Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-xs sm:text-sm flex items-center gap-1.5 flex-wrap">
+                    <span className="whitespace-nowrap">Game #{game.id.slice(-8)}</span>
+                    <span className={`font-bold ${game.result === 'win' ? 'text-success' : 'text-error'}`}>
+                      {game.result === 'win' ? '✓ Won' : '✗ Lost'}
+                    </span>
                   </div>
-                  
-                  <div>
-                    <div className="font-medium text-sm">
-                      Game #{game.id.slice(-8)} • 
-                      <span className={game.result === 'win' ? 'text-success' : 'text-error'}>
-                        {game.result === 'win' ? 'Won' : 'Lost'}
-                      </span>
-                    </div>
-                    <div className="text-xs text-base-content/60">
-                      {new Date(game.completedAt).toLocaleString()} • 
-                      Opponent: #{game.opponentId.slice(-4)}
-                    </div>
+                  <div className="text-[10px] sm:text-xs text-base-content/60 mt-0.5">
+                    {new Date(game.completedAt).toLocaleDateString()}
+                    <span className="hidden sm:inline"> {new Date(game.completedAt).toLocaleTimeString()}</span>
+                  </div>
+                  <div className="text-[10px] sm:text-xs text-base-content/60">
+                    vs #{game.opponentId.slice(-4)}
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <div className="font-mono font-medium">
-                    {game.betAmount.toFixed(3)} SOL bet
+                {/* Net Amount */}
+                <div className="text-right flex-shrink-0">
+                  <div className="font-mono text-xs sm:text-sm font-medium whitespace-nowrap">
+                    {game.betAmount.toFixed(2)} SOL
                   </div>
-                  <div className={`text-sm ${
+                  <div className={`text-xs sm:text-sm font-bold whitespace-nowrap ${
                     game.result === 'win' ? 'text-success' : 'text-error'
                   }`}>
-                    {game.result === 'win' ? '+' : '-'}{game.netAmount.toFixed(3)} SOL
+                    {game.result === 'win' ? '+' : ''}{game.netAmount.toFixed(2)}
                   </div>
                 </div>
               </div>
 
-              {/* Game details */}
-              <div className="flex justify-between items-center mt-3 pt-3 border-t border-base-300">
-                <div className="flex items-center gap-4 text-xs text-base-content/60">
-                  <span>Your choice: {game.yourChoice}</span>
-                  <span>Opponent: {game.opponentChoice}</span>
-                  <span>Result: {game.coinResult}</span>
+              {/* Game details - Responsive Grid */}
+              <div className="pt-2 border-t border-base-300 space-y-1.5 sm:space-y-0">
+                <div className="grid grid-cols-3 gap-2 text-[10px] sm:text-xs text-base-content/60">
+                  <div className="text-center">
+                    <div className="font-semibold text-base-content">Your choice:</div>
+                    <div className="capitalize font-mono">{game.yourChoice}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-base-content">Opponent:</div>
+                    <div className="capitalize font-mono">{game.opponentChoice}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-base-content">Result:</div>
+                    <div className="capitalize font-mono">{game.coinResult}</div>
+                  </div>
                 </div>
-                
-                <button className="btn btn-xs btn-ghost">
-                  View on Explorer
+
+                {/* Explorer Button - Icon on mobile, text on desktop */}
+                <button className="btn btn-xs btn-ghost w-full sm:w-auto mt-2 sm:mt-0 gap-1">
+                  <ExternalLink className="w-3 h-3" />
+                  <span className="hidden sm:inline text-xs">View on Explorer</span>
+                  <span className="sm:hidden text-xs">Explorer</span>
                 </button>
               </div>
             </div>

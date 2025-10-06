@@ -108,24 +108,28 @@ export const LobbyPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-base-100 to-base-200">
       {/* Header */}
-      <header className="navbar bg-base-300/50 backdrop-blur-sm border-b border-base-300/20">
-        <div className="navbar-start">
-          <h1 className="text-base sm:text-xl font-bold">🎯 Game Lobby</h1>
+      <header className="navbar bg-base-300/50 backdrop-blur-sm border-b border-base-300/20 min-h-[50px] sm:min-h-[64px] px-2 sm:px-4">
+        <div className="navbar-start flex-shrink">
+          <h1 className="text-sm sm:text-xl font-bold whitespace-nowrap flex items-center gap-1 sm:gap-2">
+            <span className="text-base sm:text-2xl">🎯</span>
+            <span>Game Lobby</span>
+          </h1>
         </div>
-        <div className="navbar-end gap-2 sm:gap-4">
+        <div className="navbar-end gap-1 sm:gap-4 flex-shrink-0">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn btn-primary btn-sm sm:btn-md"
+            className="btn btn-primary btn-xs sm:btn-md min-h-[36px] h-[36px] sm:h-auto px-2 sm:px-4"
           >
-            <Plus size={16} />
-            <span className="hidden sm:inline">Create Game</span>
+            <Plus size={14} className="sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline text-xs sm:text-sm">Create Game</span>
+            <span className="sm:hidden text-xs">Create</span>
           </button>
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="btn btn-ghost btn-sm sm:btn-md"
+            className="btn btn-ghost btn-xs sm:btn-md min-h-[36px] h-[36px] w-[36px] sm:w-auto sm:h-auto p-1 sm:p-2"
           >
-            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={`sm:w-4 sm:h-4 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </header>
@@ -150,47 +154,47 @@ export const LobbyPage: React.FC = () => {
             </div>
           )}
 
-          {/* Tabs */}
-          <div className="tabs tabs-boxed mb-4 sm:mb-6 overflow-x-auto flex-nowrap">
+          {/* Tabs - Mobile Optimized: 3-Row Design with Horizontal Scroll */}
+          <div className="tabs tabs-boxed mb-4 sm:mb-6 overflow-x-auto overflow-y-visible flex-nowrap p-1" style={{ minHeight: '90px' }}>
             <a
-              className={`tab tab-sm sm:tab-md ${activeTab === 'available' ? 'tab-active' : ''}`}
+              className={`tab flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-2 ${activeTab === 'available' ? 'tab-active' : ''}`}
+              style={{ minWidth: '95px', minHeight: '75px' }}
               onClick={() => setActiveTab('available')}
             >
-              <Users size={14} className="mr-1 sm:mr-2" />
-              <span className="hidden xs:inline">Available</span>
-              {availableGames && availableGames.length > 0 && (
-                <span className="badge badge-primary badge-xs sm:badge-sm ml-1 sm:ml-2">{availableGames.length}</span>
-              )}
+              <Users size={20} className="sm:hidden" />
+              <Users size={16} className="hidden sm:inline" />
+              <span className="text-sm font-bold whitespace-nowrap">Available</span>
+              <span className="badge badge-primary badge-xs">{availableGames?.length || 0}</span>
             </a>
             <a
-              className={`tab tab-sm sm:tab-md ${activeTab === 'running' ? 'tab-active' : ''}`}
+              className={`tab flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-2 ${activeTab === 'running' ? 'tab-active' : ''}`}
+              style={{ minWidth: '95px', minHeight: '75px' }}
               onClick={() => setActiveTab('running')}
             >
-              <Clock size={14} className="mr-1 sm:mr-2" />
-              <span className="hidden xs:inline">Running</span>
-              {runningGames && runningGames.length > 0 && (
-                <span className="badge badge-secondary badge-xs sm:badge-sm ml-1 sm:ml-2">{runningGames.length}</span>
-              )}
+              <Clock size={20} className="sm:hidden" />
+              <Clock size={16} className="hidden sm:inline" />
+              <span className="text-sm font-bold whitespace-nowrap">Running</span>
+              <span className="badge badge-secondary badge-xs">{runningGames?.length || 0}</span>
             </a>
             <a
-              className={`tab tab-sm sm:tab-md ${activeTab === 'my-games' ? 'tab-active' : ''}`}
+              className={`tab flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-2 ${activeTab === 'my-games' ? 'tab-active' : ''}`}
+              style={{ minWidth: '95px', minHeight: '75px' }}
               onClick={() => setActiveTab('my-games')}
             >
-              <Trophy size={14} className="mr-1 sm:mr-2" />
-              <span className="hidden xs:inline">My Games</span>
-              {myGames && myGames.length > 0 && (
-                <span className="badge badge-accent badge-xs sm:badge-sm ml-1 sm:ml-2">{myGames.length}</span>
-              )}
+              <Trophy size={20} className="sm:hidden" />
+              <Trophy size={16} className="hidden sm:inline" />
+              <span className="text-sm font-bold whitespace-nowrap">My Games</span>
+              <span className="badge badge-accent badge-xs">{myGames?.length || 0}</span>
             </a>
             <a
-              className={`tab tab-sm sm:tab-md ${activeTab === 'history' ? 'tab-active' : ''}`}
+              className={`tab flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-2 ${activeTab === 'history' ? 'tab-active' : ''}`}
+              style={{ minWidth: '95px', minHeight: '75px' }}
               onClick={() => setActiveTab('history')}
             >
-              <History size={14} className="mr-1 sm:mr-2" />
-              <span className="hidden xs:inline">History</span>
-              {gameHistory && gameHistory.length > 0 && (
-                <span className="badge badge-neutral badge-xs sm:badge-sm ml-1 sm:ml-2">{gameHistory.length}</span>
-              )}
+              <History size={20} className="sm:hidden" />
+              <History size={16} className="hidden sm:inline" />
+              <span className="text-sm font-bold whitespace-nowrap">History</span>
+              <span className="badge badge-neutral badge-xs">{gameHistory?.length || 0}</span>
             </a>
           </div>
 

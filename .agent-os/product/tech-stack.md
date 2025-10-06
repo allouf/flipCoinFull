@@ -13,10 +13,18 @@
 
 ## Infrastructure
 
-- **Application Hosting:** Localhost (devnet testing) → Vercel/Netlify (production)
-- **Blockchain Networks:** Solana Devnet (current) → Mainnet (planned)
+### Current Deployment (Test Phase)
+- **Application Hosting:** Vercel (https://flipcoin.vercel.app)
+- **Backend Hosting:** Render (WebSocket server)
+- **Database Hosting:** Neon (PostgreSQL with connection pooling)
+- **Blockchain Network:** Solana Devnet
 - **Smart Contract:** fair_coin_flipper program deployed on devnet
+
+### Production Targets
+- **Blockchain Network:** Solana Mainnet (planned)
+- **RPC Provider:** Helius or QuickNode (to be configured)
 - **Deployment Strategy:** Anchor deploy scripts for program deployment
+- **CI/CD:** Automated testing and deployment pipeline (planned)
 
 ## Blockchain Integration
 
@@ -30,6 +38,22 @@
 - **RPC Provider:** Configurable via REACT_APP_DEVNET_RPC_URL env var
 - **Commitment Scheme:** SHA256 hash (js-sha256 v0.11.1)
 - **Secret Generation:** tweetnacl v1.0.3 for cryptographic random values
+
+### VRF Integration (Switchboard)
+- **VRF Library:** @switchboard-xyz/solana.js v3.2.5
+- **Purpose:** Verifiable Random Function for fair game outcomes
+- **Services Implemented:**
+  - VRFAccountManager - Account lifecycle management
+  - VRFRetryHandler - Transaction retry logic with exponential backoff
+  - VRFErrorDetector - Error detection and classification
+  - VRFHealthMonitor - System health tracking
+  - VRFEmergencyFallback - Fallback mechanisms for failures
+  - SwitchboardQueueTracker - Oracle queue monitoring
+- **Features:**
+  - Comprehensive error handling and retry mechanisms
+  - Health monitoring and status tracking
+  - Emergency fallback for critical failures
+  - Integration tests for production validation
 
 ## Real-time Features
 
@@ -97,15 +121,26 @@
 
 ## Development Tools
 
-- **Testing Framework:**
-  - Jest with @testing-library/react v13.4.0
-  - @testing-library/user-event v13.5.0
-  - Playwright v1.55.0 (E2E testing)
+### Testing & Quality
+- **Unit Testing:** Jest with @testing-library/react v13.4.0
+- **Component Testing:** @testing-library/user-event v13.5.0
+- **E2E Testing:** Playwright v1.55.0 for end-to-end flows
+- **Test Coverage:** Comprehensive tests for VRF services, hooks, components
+- **MCP Testing:** @playwright/mcp v0.0.35 for model context protocol
+
+### Build & Development
 - **Package Manager:** npm with package-lock.json
-- **Build Tools:** CRACO + Webpack (via CRA customization)
-- **Linting:** ESLint v8.37.0 with Airbnumber TypeScript config
+- **Build Tools:** CRACO v7.1.0 + Webpack (via CRA customization)
+- **Linting:** ESLint v8.37.0 with Airbnb TypeScript config
 - **Code Formatting:** Prettier v2.8.7
-- **Development Server:** Port 3010 (configurable)
+- **Development Server:** Port 3010 (configurable via PORT env var)
+- **Hot Reload:** React Fast Refresh enabled
+
+### CI/CD (Planned)
+- **Continuous Integration:** GitHub Actions (to be configured)
+- **Automated Testing:** Run tests on PR and push
+- **Deployment:** Auto-deploy to Vercel on merge to main
+- **Smart Contract:** Anchor deploy scripts with environment checks
 
 ## Backend API (WebSocket Only)
 

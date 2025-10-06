@@ -1618,18 +1618,40 @@ export const useFairCoinFlipper = () => {
         })
         .rpc();
 
+      console.log('✅ Reveal transaction successful:', tx);
+
+      // IMPORTANT: Re-fetch game state immediately to check if auto-resolution happened
+      // When the second player reveals, the smart contract auto-resolves the game
+      console.log('🔍 Re-fetching game state to check for auto-resolution...');
+      const updatedGameAccount = await program.account.game.fetch(gamePda);
+      const updatedStatus = (updatedGameAccount as any).status;
+      const updatedStatusKey = typeof updatedStatus === 'object' ? Object.keys(updatedStatus)[0] : updatedStatus;
+
+      console.log('📊 Updated game status after reveal:', updatedStatusKey);
+
       setGameState(prev => ({
         ...prev,
         txSignature: tx,
         isPlayerRevealed: true,
       }));
 
-      addNotification({
-        type: 'success',
-        title: 'Choice Revealed!',
-        message: 'Your choice has been revealed. Waiting for game resolution...',
-        duration: 3000,
-      });
+      // Check if game auto-resolved (second player revealed)
+      if (updatedStatusKey === 'resolved' || updatedStatusKey === 'Resolved') {
+        console.log('🎉 Game auto-resolved after second reveal!');
+        addNotification({
+          type: 'success',
+          title: 'Game Resolved!',
+          message: 'Both players revealed. Determining winner...',
+          duration: 3000,
+        });
+      } else {
+        addNotification({
+          type: 'success',
+          title: 'Choice Revealed!',
+          message: 'Your choice has been revealed. Waiting for opponent to reveal...',
+          duration: 3000,
+        });
+      }
 
       // Emit WebSocket event to notify other player
       const wsManager = WebSocketManager.getInstance();
@@ -1641,6 +1663,7 @@ export const useFairCoinFlipper = () => {
           gameId: gameState.gameId,
           playerRole: gameState.playerRole,
           status: 'revealed',
+          gameResolved: updatedStatusKey === 'resolved' || updatedStatusKey === 'Resolved',
         },
         timestamp: Date.now(),
       });

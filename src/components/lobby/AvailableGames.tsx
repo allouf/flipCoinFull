@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, Users, Coins, Hash } from 'lucide-react';
+import { Clock, Users, Coins, Hash, Play } from 'lucide-react';
 import { useAnchorProgram } from '../../hooks/useAnchorProgram';
 
 interface AvailableGamesProps {
@@ -137,59 +137,60 @@ export const AvailableGames: React.FC<AvailableGamesProps> = ({ availableGames, 
         </div>
       )}
 
-      {/* Games List */}
+      {/* Games List - Mobile Optimized */}
       {filteredGames.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
         {filteredGames.map((game) => (
           <div key={game.id} className="card bg-base-100 shadow-xl">
-            <div className="card-body">
-              {/* Game ID */}
-              <div className="flex items-center gap-2 mb-2">
-                <Hash className="w-4 h-4 text-base-content/60" />
-                <span className="text-xs font-mono text-base-content/60">
-                  Game ID: {game.id}
-                </span>
+            <div className="card-body p-3 sm:p-4 space-y-2 sm:space-y-3">
+              {/* Header: Game ID & Badge */}
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-1.5">
+                  <Hash className="w-3 h-3 sm:w-4 sm:h-4 text-base-content/60" />
+                  <span className="text-[10px] sm:text-xs font-mono text-base-content/60">
+                    #{game.id}
+                  </span>
+                </div>
+                <div className="badge badge-warning badge-xs sm:badge-sm">waiting</div>
               </div>
 
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-2">
-                  <div className="avatar placeholder">
-                    <div className="bg-primary text-primary-content rounded-full w-8">
-                      <span className="text-xs">🎮</span>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-sm">
-                      Player {game.creatorId ? `#${game.creatorId.slice(-6)}` : 'Unknown'}
-                    </h3>
-                    <div className="text-xs text-base-content/60">
-                      {new Date(game.createdAt).toLocaleDateString()} {' '}
-                      {new Date(game.createdAt).toLocaleTimeString()}
-                    </div>
+              {/* Creator & Date - Compact */}
+              <div className="flex items-center gap-1.5">
+                <div className="avatar placeholder">
+                  <div className="bg-primary text-primary-content rounded-full w-6 sm:w-8">
+                    <span className="text-[10px] sm:text-xs">🎮</span>
                   </div>
                 </div>
-                <div className="badge badge-primary badge-sm">Waiting</div>
-              </div>
-
-              <div className="flex items-center justify-between mt-4">
-                <div className="flex items-center gap-2">
-                  <Coins className="w-4 h-4 text-warning" />
-                  <span className="font-mono font-bold text-lg">{game.betAmount.toFixed(3)} SOL</span>
-                </div>
-                <div className="text-xs text-base-content/60">
-                  Win: {(game.betAmount * 2 * 0.93).toFixed(4)} SOL
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-xs sm:text-sm truncate">
+                    {game.creatorId ? `#${game.creatorId.slice(-6)}` : 'Unknown'}
+                  </h3>
+                  <div className="text-[10px] sm:text-xs text-base-content/60">
+                    {new Date(game.createdAt).toLocaleDateString()}
+                  </div>
                 </div>
               </div>
 
-              <div className="card-actions justify-end mt-4">
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => handleJoinGame(game)}
-                  disabled={loading}
-                >
-                  {loading ? 'Joining...' : 'Join Game'}
-                </button>
+              {/* Bet Amount & Potential Win */}
+              <div className="flex items-center justify-between py-1.5 sm:py-2 px-2 sm:px-3 bg-warning/10 rounded-lg">
+                <div className="flex items-center gap-1.5">
+                  <Coins className="w-3 h-3 sm:w-4 sm:h-4 text-warning flex-shrink-0" />
+                  <span className="font-mono font-bold text-sm sm:text-base">{game.betAmount.toFixed(2)} SOL</span>
+                </div>
+                <div className="text-[10px] sm:text-xs text-success font-semibold">
+                  Win {(game.betAmount * 2 * 0.93).toFixed(2)}
+                </div>
               </div>
+
+              {/* Join Button - Full Width */}
+              <button
+                className="btn btn-xs sm:btn-sm btn-primary w-full"
+                onClick={() => handleJoinGame(game)}
+                disabled={loading}
+              >
+                <Play className="w-3 h-3" />
+                <span className="text-xs sm:text-sm">{loading ? 'Joining...' : 'Join Game'}</span>
+              </button>
             </div>
           </div>
         ))}

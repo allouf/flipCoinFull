@@ -56,3 +56,30 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-primary/80;
 }
+
+/* Mobile wallet button optimization */
+@media (max-width: 640px) {
+  /* Truncate wallet address on mobile */
+  .wallet-adapter-button-trigger {
+    max-width: 120px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* Make wallet address text smaller on mobile */
+  .wallet-adapter-button-trigger span {
+    font-size: 0.65rem !important;
+    max-width: 80px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    display: inline-block !important;
+  }
+
+  /* Compact wallet icon on mobile */
+  .wallet-adapter-button-start-icon {
+    width: 16px !important;
+    height: 16px !important;
+    margin-right: 4px !important;
+  }
+}

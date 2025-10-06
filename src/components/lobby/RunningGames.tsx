@@ -47,8 +47,8 @@ export const RunningGames: React.FC<RunningGamesProps> = ({ runningGames, stats,
         </div>
       </div>
 
-      {/* Games List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Games List - Mobile Optimized */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4">
         {runningGames.map((game) => {
           // Check if current user is a player in this game
           const userAddress = publicKey?.toString();
@@ -59,78 +59,67 @@ export const RunningGames: React.FC<RunningGamesProps> = ({ runningGames, stats,
 
           return (
             <div key={game.id} className="card bg-base-100 shadow-xl">
-              <div className="card-body">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="card-title text-sm">Game #{game.id.slice(-8)}</h3>
-                  <div className="badge badge-success badge-sm gap-1">
-                    <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-                    Live
+              <div className="card-body p-3 sm:p-4 space-y-2 sm:space-y-3">
+                {/* Header */}
+                <div className="flex justify-between items-center">
+                  <h3 className="font-medium text-xs sm:text-sm">Game #{game.id.slice(-8)}</h3>
+                  <div className="badge badge-success badge-xs sm:badge-sm gap-1">
+                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-success rounded-full animate-pulse"></div>
+                    <span className="text-[10px] sm:text-xs">Live</span>
                   </div>
                 </div>
 
-                {/* Game Info */}
-                <div className="text-xs text-base-content/60 mb-4">
-                  {game.creatorId === userAddress ? 'Created by you' : `Created by #${game.creatorId.slice(-6)}`} •
-                  {new Date(game.createdAt).toLocaleDateString()}
+                {/* Creator Info - Compact */}
+                <div className="text-[10px] sm:text-xs text-base-content/60">
+                  {game.creatorId === userAddress ? '👤 You created' : `🎮 #${game.creatorId.slice(-6)}`} • {new Date(game.createdAt).toLocaleDateString()}
                 </div>
 
-                {/* Players */}
-                <div className="flex justify-between items-center mb-4">
-                  <div className="text-center">
-                    <div className="avatar placeholder mb-1">
-                      <div className={`${game.player1 === userAddress ? 'bg-accent' : 'bg-primary'} text-primary-content rounded-full w-10`}>
-                        <span className="text-xs">{game.player1 === userAddress ? 'You' : 'P1'}</span>
-                      </div>
+                {/* Players - Compact */}
+                <div className="flex justify-between items-center py-2 px-2 sm:px-3 bg-base-200/50 rounded-lg">
+                  <div className="flex items-center gap-1.5">
+                    <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${game.player1 === userAddress ? 'bg-accent' : 'bg-primary'} text-primary-content`}>
+                      <span className="text-[10px] sm:text-xs font-bold">{game.player1 === userAddress ? 'You' : 'P1'}</span>
                     </div>
-                    <div className="text-xs text-base-content/60">
-                      #{game.player1.slice(-4)}
-                    </div>
+                    <span className="text-[10px] sm:text-xs font-mono">#{game.player1.slice(-4)}</span>
                   </div>
 
-                  <div className="text-center">
-                    <div className="text-lg font-bold mb-1">VS</div>
-                    <div className="text-xs text-base-content/60">Pot: {game.totalPot} SOL</div>
+                  <div className="text-center px-2">
+                    <div className="text-xs sm:text-sm font-bold">VS</div>
+                    <div className="text-[10px] sm:text-xs text-warning font-semibold">{game.totalPot} SOL</div>
                   </div>
 
-                  <div className="text-center">
-                    <div className="avatar placeholder mb-1">
-                      <div className={`${game.player2 === userAddress ? 'bg-accent' : 'bg-secondary'} text-secondary-content rounded-full w-10`}>
-                        <span className="text-xs">{game.player2 === userAddress ? 'You' : 'P2'}</span>
-                      </div>
-                    </div>
-                    <div className="text-xs text-base-content/60">
-                      #{game.player2.slice(-4)}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] sm:text-xs font-mono">#{game.player2.slice(-4)}</span>
+                    <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${game.player2 === userAddress ? 'bg-accent' : 'bg-secondary'} text-secondary-content`}>
+                      <span className="text-[10px] sm:text-xs font-bold">{game.player2 === userAddress ? 'You' : 'P2'}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Game Status */}
-                <div className="text-center mb-4">
-                  <div className="text-sm font-medium">{game.status}</div>
-                  <div className="text-xs text-base-content/60">
-                    {game.phase === 'revealing' ? 'Revealing choices...' : 'Making selections...'}
+                {/* Status - Compact */}
+                <div className="text-center py-1">
+                  <div className="text-[10px] sm:text-xs text-base-content/60">
+                    {game.phase === 'revealing' ? '🔓 Revealing...' : '🎲 Selecting...'}
                   </div>
                 </div>
 
-                <div className="card-actions justify-center">
+                {/* Action Button */}
+                <button
+                  className={`btn btn-xs sm:btn-sm w-full ${isPlayer ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => navigate(`/game/${game.id}`)}
+                >
                   {isPlayer ? (
-                    <button
-                      className="btn btn-sm btn-primary gap-2"
-                      onClick={() => navigate(`/game/${game.id}`)}
-                    >
-                      <Play className="w-4 h-4" />
-                      Continue Game
-                    </button>
+                    <>
+                      <Play className="w-3 h-3" />
+                      <span className="text-xs sm:text-sm">Continue</span>
+                    </>
                   ) : (
-                    <button
-                      className="btn btn-sm btn-outline gap-2"
-                      onClick={() => navigate(`/game/${game.id}`)}
-                    >
-                      <Eye className="w-4 h-4" />
-                      Spectate
-                    </button>
+                    <>
+                      <Eye className="w-3 h-3" />
+                      <span className="text-xs sm:text-sm">Watch</span>
+                    </>
                   )}
-                </div>
+                </button>
               </div>
             </div>
           );
