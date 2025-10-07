@@ -567,20 +567,55 @@ export const useFairCoinFlipper = () => {
       const choice_a = (gameAccount as any).choiceA || (gameAccount as any).choice_a;
       const choice_b = (gameAccount as any).choiceB || (gameAccount as any).choice_b;
 
+      console.log('🔍 DEBUG - Raw blockchain choices:', {
+        choice_a,
+        choice_b,
+        choice_a_type: typeof choice_a,
+        choice_b_type: typeof choice_b,
+        playerRole: gameState.playerRole
+      });
+
+      // Helper to convert Anchor enum to string
+      const convertChoice = (choice: any): CoinSide | null => {
+        if (choice === null || choice === undefined) return null;
+
+        // Handle number format (0 = heads, 1 = tails)
+        if (typeof choice === 'number') {
+          return choice === 0 ? 'heads' : choice === 1 ? 'tails' : null;
+        }
+
+        // Handle Anchor enum object format {heads: {}} or {tails: {}}
+        if (typeof choice === 'object') {
+          if ('heads' in choice || choice.heads !== undefined) return 'heads';
+          if ('tails' in choice || choice.tails !== undefined) return 'tails';
+        }
+
+        // Handle string format
+        if (typeof choice === 'string') {
+          const lowerChoice = choice.toLowerCase();
+          if (lowerChoice === 'heads') return 'heads';
+          if (lowerChoice === 'tails') return 'tails';
+        }
+
+        return null;
+      };
+
       // Determine opponent's choice based on current player role
       let opponentChoice: CoinSide | null = null;
       const currentPlayerRole = gameState.playerRole;
       if (currentPlayerRole === 'creator') {
         // Player is A, opponent is B
-        opponentChoice = choice_b === 0 ? 'heads' : choice_b === 1 ? 'tails' : null;
+        opponentChoice = convertChoice(choice_b);
       } else if (currentPlayerRole === 'joiner') {
         // Player is B, opponent is A
-        opponentChoice = choice_a === 0 ? 'heads' : choice_a === 1 ? 'tails' : null;
+        opponentChoice = convertChoice(choice_a);
       }
+
+      console.log('🎯 Extracted opponent choice:', opponentChoice);
 
       const resolvedData = {
         winner: winner?.toString() || null,
-        coinResult: coinResult === 0 ? 'heads' : 'tails',
+        coinResult: convertChoice(coinResult) || 'heads', // Use same converter for coinResult
         opponentChoice,
         winnerPayout: winnerPayout ? winnerPayout.toNumber() / LAMPORTS_PER_SOL : null,
         houseFee: houseFee ? houseFee.toNumber() / LAMPORTS_PER_SOL : null,

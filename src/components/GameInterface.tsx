@@ -665,8 +665,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
         </div>
       </div>
 
-      {/* Specific Game Data Display */}
-      {gameId && (
+      {/* Specific Game Data Display - Hide when game is resolved (we show GameResult instead) */}
+      {gameId && gameState.phase !== 'resolved' && (
         <div className="mb-8">
           {loadingGameData && (
             <div className="text-center p-4">
