@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { Trophy, TrendingUp, TrendingDown, Calendar, ExternalLink } from 'lucide-react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { Trophy, TrendingUp, TrendingDown, Calendar, ExternalLink, Copy, Check } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface GameHistoryProps {
   gameHistory?: any[];
@@ -9,8 +10,55 @@ interface GameHistoryProps {
 
 export const GameHistory: React.FC<GameHistoryProps> = ({ gameHistory, loading }) => {
   const { connected } = useWallet();
+  const { connection } = useConnection();
   const [filter, setFilter] = useState<'all' | 'wins' | 'losses'>('all');
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Helper function to get explorer URL for transaction
+  const getExplorerUrl = (signature: string) => {
+    const endpoint = connection.rpcEndpoint;
+    let cluster = 'devnet';
+
+    if (endpoint.includes('mainnet')) {
+      cluster = '';
+    } else if (endpoint.includes('testnet')) {
+      cluster = 'testnet';
+    }
+
+    const clusterParam = cluster ? `?cluster=${cluster}` : '';
+    return `https://explorer.solana.com/tx/${signature}${clusterParam}`;
+  };
+
+  // Helper function to get explorer URL for game account
+  const getGameAccountUrl = (accountPda: string) => {
+    const endpoint = connection.rpcEndpoint;
+    let cluster = 'devnet';
+
+    if (endpoint.includes('mainnet')) {
+      cluster = '';
+    } else if (endpoint.includes('testnet')) {
+      cluster = 'testnet';
+    }
+
+    const clusterParam = cluster ? `?cluster=${cluster}` : '';
+    return `https://explorer.solana.com/address/${accountPda}${clusterParam}`;
+  };
+
+  // Copy opponent ID to clipboard
+  const copyOpponentId = async (gameId: string, opponentId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(opponentId);
+      setCopiedId(gameId); // Use gameId as unique identifier
+      toast.success('Opponent address copied!');
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      toast.error('Failed to copy address');
+    }
+  };
 
   const filteredHistory = useMemo(() => {
     let filtered = gameHistory || [];
@@ -179,8 +227,19 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ gameHistory, loading }
                     {new Date(game.completedAt).toLocaleDateString()}
                     <span className="hidden sm:inline"> {new Date(game.completedAt).toLocaleTimeString()}</span>
                   </div>
-                  <div className="text-[10px] sm:text-xs text-base-content/60">
-                    vs #{game.opponentId.slice(-4)}
+                  <div className="text-[10px] sm:text-xs text-base-content/60 flex items-center gap-1">
+                    <span>vs #{game.opponentId}</span>
+                    <button
+                      onClick={(e) => copyOpponentId(game.id, (game as any).opponentIdFull || game.opponentId, e)}
+                      className="hover:text-base-content transition-colors p-0.5"
+                      title="Copy full opponent address"
+                    >
+                      {copiedId === game.id ? (
+                        <Check className="w-2.5 h-2.5 text-success" />
+                      ) : (
+                        <Copy className="w-2.5 h-2.5" />
+                      )}
+                    </button>
                   </div>
                 </div>
 
@@ -214,12 +273,21 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ gameHistory, loading }
                   </div>
                 </div>
 
-                {/* Explorer Button - Icon on mobile, text on desktop */}
-                <button className="btn btn-xs btn-ghost w-full sm:w-auto mt-2 sm:mt-0 gap-1">
-                  <ExternalLink className="w-3 h-3" />
-                  <span className="hidden sm:inline text-xs">View on Explorer</span>
-                  <span className="sm:hidden text-xs">Explorer</span>
-                </button>
+                {/* Explorer Button - More Prominent */}
+                {(game as any).accountPda && (
+                  <div className="flex justify-center mt-2">
+                    <a
+                      href={(game as any).signature ? getExplorerUrl((game as any).signature) : getGameAccountUrl((game as any).accountPda)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-sm btn-primary w-full sm:w-auto gap-2"
+                      title={(game as any).signature ? 'View transaction on explorer' : 'View game account on explorer (includes all transactions)'}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span className="text-xs sm:text-sm">View on Explorer</span>
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           </div>

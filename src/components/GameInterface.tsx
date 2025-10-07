@@ -366,6 +366,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
     resetGame,
     generateGameId,
     dismissNotification,
+    addNotification,
     fetchGameData,
     loadGameByPda,
     rejoinExistingGame,
@@ -688,6 +689,28 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
                 </div>
               </div>
 
+              {/* Dynamic status banner based on game phase */}
+              {specificGameData.status === 'waitingForPlayer' && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-yellow-800">⏳ This game is waiting for a second player to join.</p>
+                </div>
+              )}
+
+              {specificGameData.status === 'playersReady' && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <p className="text-purple-800">🤝 Commitment Phase - Both players must lock in their choices</p>
+                </div>
+              )}
+
+              {(specificGameData.status === 'commitmentsReady' || specificGameData.status === 'revealingPhase') && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-2">
+                  <h3 className="font-semibold text-orange-800">🎭 Reveal Phase</h3>
+                  <p className="text-sm text-orange-700">
+                    Time to reveal choices and determine the winner!
+                  </p>
+                </div>
+              )}
+
               {specificGameData.status === 'resolved' && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <h3 className="font-semibold text-green-800 mb-2">🏁 Game Complete</h3>
@@ -717,43 +740,6 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
                   )}
                 </div>
               )}
-
-              {specificGameData.status === 'waitingForPlayer' && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <p className="text-yellow-800">⏳ This game is waiting for a second player to join.</p>
-                </div>
-              )}
-
-              {specificGameData.status === 'playersReady' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-blue-800">🎯 Both players have joined. Game is ready to begin!</p>
-                </div>
-              )}
-
-              {(specificGameData.status === 'revealingPhase' || specificGameData.status === 'commitmentsReady') && (
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-2">
-                  <h3 className="font-semibold text-orange-800">🎭 Reveal Phase</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-600">Player A:</span>
-                      <span className="ml-2 font-medium">
-                        {specificGameData.playerARevealed ? '✅ Revealed' : '⏳ Waiting'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Player B:</span>
-                      <span className="ml-2 font-medium">
-                        {specificGameData.playerBRevealed ? '✅ Revealed' : '⏳ Waiting'}
-                      </span>
-                    </div>
-                  </div>
-                  {(specificGameData.playerARevealed || specificGameData.playerBRevealed) && (
-                    <p className="text-sm text-orange-700">
-                      💫 One player has revealed their choice. Waiting for the other player...
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
@@ -769,8 +755,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Game Controls */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Choice Selection - Only show during idle, waiting, and revealing phases (NOT resolved or committing) */}
-          {(gameState.phase === 'idle' || gameState.phase === 'waiting' || gameState.phase === 'revealing') && (
+          {/* Choice Selection - Only show during idle phase and revealing phase (to show committed choice) */}
+          {(gameState.phase === 'idle' || (gameState.phase === 'revealing' && gameState.playerChoice)) && (
             <div className="bg-white rounded-lg p-6 shadow-md">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">
                 {gameState.phase === 'revealing' ? 'Your Committed Choice' : 'Choose Your Side'}
@@ -907,8 +893,11 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
                   onClick={() => {
                     const url = `${window.location.origin}/game/${gameState.gameId}`;
                     navigator.clipboard.writeText(url);
-                    // Simple notification (can be improved with toast)
-                    alert('Game link copied to clipboard!');
+                    addNotification({
+                      type: 'success',
+                      title: 'Link Copied!',
+                      message: 'Game link copied to clipboard. Share it with your opponent!',
+                    });
                   }}
                   className="mt-3 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
                 >

@@ -44,11 +44,14 @@ export interface HistoryGameData {
   betAmount: number;
   result: 'win' | 'loss';
   opponentId: string;
+  opponentIdFull: string; // Full opponent address for copying
   completedAt: string;
   netAmount: number;
   yourChoice: string;
   opponentChoice: string;
   coinResult: string;
+  signature?: string; // Transaction signature if available
+  accountPda?: string; // Game account address on Solana
 }
 
 export interface LobbyStats {
@@ -321,11 +324,14 @@ export const useLobbyData = () => {
           betAmount,
           result,
           opponentId: opponentId.slice(-8), // Show last 8 chars
+          opponentIdFull: opponentId, // Full address for copying
           completedAt: new Date(room.createdAt.toNumber() * 1000).toISOString(), // Using createdAt as approximation
           netAmount,
           yourChoice: yourChoice || 'unknown',
           opponentChoice: opponentChoice || 'unknown',
           coinResult,
+          signature: undefined, // TODO: Get actual transaction signature from blockchain
+          accountPda: room.accountPda?.toString(), // Game account address
         };
       })
       .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()); // Most recent first

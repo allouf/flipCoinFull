@@ -40,6 +40,9 @@ export interface GameRoom {
   bump: number;
   escrowBump: number;
 
+  // Account metadata
+  accountPda?: PublicKey;  // The game account's public key/address
+
   // Legacy field mappings for compatibility (added as alias properties)
   roomId: BN;  // Alias for gameId (required since gameId is required)
   player1: PublicKey;  // Alias for playerA (required since playerA is required)
@@ -772,6 +775,9 @@ export const useAnchorProgram = () => {
         try {
           // Try to decode as GameRoom using exact IDL account name
           const decoded = program.coder.accounts.decode('Game', account.account.data);
+
+          // Add account PDA
+          (decoded as any).accountPda = account.pubkey;
 
           // Add legacy field mappings for compatibility
           (decoded as any).roomId = decoded.gameId;

@@ -1106,7 +1106,17 @@ export const useFairCoinFlipper = () => {
       } else if ('resolved' in status) {
         phase = 'resolved';
         blockchainStatus = 'Resolved';
+        // Set player role before calling handleGameResolution
+        setGameState(prev => ({
+          ...prev,
+          gameId,
+          playerRole: isPlayerA ? 'creator' : 'joiner',
+          betAmount,
+        }));
         await handleGameResolution(gameAccount);
+        // handleGameResolution sets all the resolved data, so return early
+        setLoading(false);
+        return true;
       }
 
       // Try to restore commitment from commitmentService if player has already committed
