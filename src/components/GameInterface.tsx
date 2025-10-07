@@ -769,7 +769,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Game Controls */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Choice Selection - Only show during idle, waiting, and revealing phases */}
+          {/* Choice Selection - Only show during idle, waiting, and revealing phases (NOT resolved or committing) */}
           {(gameState.phase === 'idle' || gameState.phase === 'waiting' || gameState.phase === 'revealing') && (
             <div className="bg-white rounded-lg p-6 shadow-md">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">
@@ -828,9 +828,10 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
             </div>
           )}
 
-          {/* Game Actions */}
-          <div className="bg-white rounded-lg p-6 shadow-md space-y-6">
-            {gameState.phase === 'idle' && !isGameRoom && (
+          {/* Game Actions - Hide when resolved */}
+          {gameState.phase !== 'resolved' && (
+            <div className="bg-white rounded-lg p-6 shadow-md space-y-6">
+              {gameState.phase === 'idle' && !isGameRoom && (
               <>
                 {/* Create Game */}
                 <div>
@@ -1191,6 +1192,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* Right Column - Game Info */}
@@ -1201,7 +1203,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
               Game Info
             </h3>
             <GameStats
-              gameId={gameId || gameState.gameId}
+              gameId={gameId ? (typeof gameId === 'string' ? parseInt(gameId) : gameId) : gameState.gameId}
               betAmount={specificGameData?.betAmount || gameState.betAmount}
               timeRemaining={gameState.timeRemaining}
               createdAt={gameState.createdAt}
