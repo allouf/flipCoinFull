@@ -8,6 +8,12 @@ import CoinFlipAnimation from './CoinFlipAnimation';
 import { WebSocketManager } from '../services/WebSocketManager';
 import '../styles/CoinFlipAnimation.css';
 
+// Helper functions
+const truncateAddress = (address: string, startChars: number = 4, endChars: number = 4): string => {
+  if (!address || address.length <= startChars + endChars) return address;
+  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
+};
+
 // Sub-components
 const PhaseIndicator: React.FC<{ phase: GamePhase }> = ({ phase }) => {
   const getPhaseInfo = (phase: GamePhase) => {
@@ -337,7 +343,7 @@ interface GameInterfaceProps {
 }
 
 export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom = false, isSpectator = false }) => {
-  const { connected } = useWallet();
+  const { connected, publicKey } = useWallet();
   const navigate = useNavigate();
   const fairCoinFlipperResult = useFairCoinFlipper();
   const { allRooms } = useLobbyData();
@@ -685,26 +691,28 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
               {specificGameData.status === 'resolved' && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <h3 className="font-semibold text-green-800 mb-2">🏁 Game Complete</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                       <span className="text-gray-600">Coin Result:</span>
-                      <span className="ml-2 font-medium">
+                      <span className="font-medium">
                         {specificGameData.coinResult ? specificGameData.coinResult.toUpperCase() : 'Unknown'}
                       </span>
                     </div>
-                    <div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                       <span className="text-gray-600">Winner:</span>
-                      <span className="ml-2 font-medium">
-                        {specificGameData.winner || 'Unknown'}
+                      <span className="font-medium font-mono text-xs sm:text-sm break-all sm:break-normal">
+                        {specificGameData.winner ? truncateAddress(specificGameData.winner, 6, 6) : 'Unknown'}
                       </span>
                     </div>
                   </div>
                   {specificGameData.winnerPayout && (
-                    <div className="mt-2 text-sm">
-                      <span className="text-gray-600">Payout:</span>
-                      <span className="ml-2 font-medium text-green-600">
-                        {specificGameData.winnerPayout.toFixed(4)} SOL
-                      </span>
+                    <div className="mt-3 pt-3 border-t border-green-200 text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Payout:</span>
+                        <span className="font-medium text-green-600">
+                          {specificGameData.winnerPayout.toFixed(4)} SOL
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1193,8 +1201,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
               Game Info
             </h3>
             <GameStats
-              gameId={gameState.gameId}
-              betAmount={gameState.betAmount}
+              gameId={gameId || gameState.gameId}
+              betAmount={specificGameData?.betAmount || gameState.betAmount}
               timeRemaining={gameState.timeRemaining}
               createdAt={gameState.createdAt}
             />
