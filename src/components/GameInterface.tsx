@@ -1161,37 +1161,38 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
                 )}
               </div>
             )}
-
-            {gameState.phase === 'resolved' && (
-              <div className="space-y-4">
-                <GameResult
-                  coinResult={gameState.coinResult}
-                  winner={gameState.winner}
-                  winnerPayout={gameState.winnerPayout}
-                  houseFee={gameState.houseFee}
-                  playerChoice={gameState.playerChoice}
-                  opponentChoice={gameState.opponentChoice}
-                  currentPlayerAddress={publicKey?.toString() || null}
-                />
-                <div className="flex gap-3">
-                  {isGameRoom && (
-                    <button
-                      onClick={() => navigate('/lobby')}
-                      className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200"
-                    >
-                      ← Back to Lobby
-                    </button>
-                  )}
-                  <button
-                    onClick={resetGame}
-                    className={`${isGameRoom ? 'flex-1' : 'w-full'} px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-200`}
-                  >
-                    🎮 Play Again
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
+          )}
+
+          {/* Resolved Phase - Show game results */}
+          {gameState.phase === 'resolved' && (
+            <div className="bg-white rounded-lg p-6 shadow-md">
+              <GameResult
+                coinResult={gameState.coinResult}
+                winner={gameState.winner}
+                winnerPayout={gameState.winnerPayout}
+                houseFee={gameState.houseFee}
+                playerChoice={gameState.playerChoice}
+                opponentChoice={gameState.opponentChoice}
+                currentPlayerAddress={publicKey?.toString() || null}
+              />
+              <div className="flex gap-3 mt-6">
+                {isGameRoom && (
+                  <button
+                    onClick={() => navigate('/lobby')}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200"
+                  >
+                    ← Back to Lobby
+                  </button>
+                )}
+                <button
+                  onClick={resetGame}
+                  className={`${isGameRoom ? 'flex-1' : 'w-full'} px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-200`}
+                >
+                  🎮 Play Again
+                </button>
+              </div>
+            </div>
           )}
         </div>
 
