@@ -176,10 +176,17 @@ const GameResult: React.FC<{
   winnerPayout: number | null;
   houseFee: number | null;
   playerChoice: CoinSide | null;
-}> = ({ coinResult, winner, winnerPayout, houseFee, playerChoice }) => {
+  opponentChoice: CoinSide | null;
+  currentPlayerAddress: string | null;
+}> = ({ coinResult, winner, winnerPayout, houseFee, playerChoice, opponentChoice, currentPlayerAddress }) => {
   if (!coinResult || !winner) return null;
 
-  const isWinner = winner === 'You won!';
+  // Check if current player is the winner by comparing wallet addresses
+  const isWinner = currentPlayerAddress && winner === currentPlayerAddress;
+
+  // Check if it was a tie (both chose same or both chose different from coin)
+  const bothChoseSame = playerChoice === opponentChoice;
+  const isTieScenario = bothChoseSame;
 
   // Truncate long wallet addresses for display
   const displayWinner = winner.length > 20
@@ -212,23 +219,44 @@ const GameResult: React.FC<{
         {/* Main Result */}
         <div className={`text-3xl font-bold mb-4 ${isWinner ? 'text-green-600' : 'text-red-600'}`}>
           {isWinner ? '🎉 YOU WON! 🎉' : '😢 Hard Luck!'}
+          {isTieScenario && (
+            <p className="text-sm text-orange-600 mt-2">
+              (Both players chose the same - Random tiebreaker determined winner)
+            </p>
+          )}
         </div>
 
         {/* Coin Result */}
         <div className="bg-white/50 rounded-lg p-4 mb-4">
-          <div className="flex items-center justify-center gap-4">
-            <div>
-              <p className="text-sm text-gray-600">Coin Landed On</p>
-              <p className="text-2xl font-bold text-gray-800">
+          <div className="flex flex-col gap-3">
+            {/* Coin Result */}
+            <div className="text-center pb-3 border-b border-gray-300">
+              <p className="text-sm text-gray-600 mb-1">Coin Landed On</p>
+              <p className="text-3xl font-bold text-gray-800">
                 {coinResult === 'heads' ? '👑 HEADS' : '🪙 TAILS'}
               </p>
             </div>
-            <div className="text-3xl">vs</div>
-            <div>
-              <p className="text-sm text-gray-600">Your Choice</p>
-              <p className="text-2xl font-bold text-gray-800">
-                {playerChoice === 'heads' ? '👑 HEADS' : '🪙 TAILS'}
-              </p>
+
+            {/* Choices Comparison */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center">
+                <p className="text-sm text-gray-600 mb-1">Your Choice</p>
+                <p className="text-xl font-bold text-blue-600">
+                  {playerChoice === 'heads' ? '👑 HEADS' : '🪙 TAILS'}
+                </p>
+                {playerChoice === coinResult && (
+                  <span className="text-xs text-green-600">✓ Correct</span>
+                )}
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-600 mb-1">Opponent's Choice</p>
+                <p className="text-xl font-bold text-purple-600">
+                  {opponentChoice === 'heads' ? '👑 HEADS' : opponentChoice === 'tails' ? '🪙 TAILS' : '???'}
+                </p>
+                {opponentChoice === coinResult && (
+                  <span className="text-xs text-green-600">✓ Correct</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1133,6 +1161,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
                   winnerPayout={gameState.winnerPayout}
                   houseFee={gameState.houseFee}
                   playerChoice={gameState.playerChoice}
+                  opponentChoice={gameState.opponentChoice}
+                  currentPlayerAddress={publicKey?.toString() || null}
                 />
                 <div className="flex gap-3">
                   {isGameRoom && (

@@ -564,15 +564,40 @@ export const useFairCoinFlipper = () => {
       const coinResult = (gameAccount as any).coinResult;
       const winnerPayout = (gameAccount as any).winnerPayout;
       const houseFee = (gameAccount as any).houseFee;
+      const choice_a = (gameAccount as any).choiceA || (gameAccount as any).choice_a;
+      const choice_b = (gameAccount as any).choiceB || (gameAccount as any).choice_b;
+
+      // Determine opponent's choice based on current player role
+      let opponentChoice: CoinSide | null = null;
+      const currentPlayerRole = gameState.playerRole;
+      if (currentPlayerRole === 'creator') {
+        // Player is A, opponent is B
+        opponentChoice = choice_b === 0 ? 'heads' : choice_b === 1 ? 'tails' : null;
+      } else if (currentPlayerRole === 'joiner') {
+        // Player is B, opponent is A
+        opponentChoice = choice_a === 0 ? 'heads' : choice_a === 1 ? 'tails' : null;
+      }
+
+      const resolvedData = {
+        winner: winner?.toString() || null,
+        coinResult: coinResult === 0 ? 'heads' : 'tails',
+        opponentChoice,
+        winnerPayout: winnerPayout ? winnerPayout.toNumber() / LAMPORTS_PER_SOL : null,
+        houseFee: houseFee ? houseFee.toNumber() / LAMPORTS_PER_SOL : null,
+      };
+
+      console.log('🎲 Game resolved! Starting 3-second animation delay before showing results...');
+
+      // Wait 3 seconds for coin flip animation before showing final result
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      console.log('✨ Animation complete, showing final results!');
 
       setGameState(prev => ({
         ...prev,
         phase: 'resolved',
         blockchainStatus: 'Resolved',
-        winner: winner?.toString() || null,
-        coinResult: coinResult === 0 ? 'heads' : 'tails',
-        winnerPayout: winnerPayout ? winnerPayout.toNumber() / LAMPORTS_PER_SOL : null,
-        houseFee: houseFee ? houseFee.toNumber() / LAMPORTS_PER_SOL : null,
+        ...resolvedData,
         resolvedAt: Date.now(),
       }));
 
