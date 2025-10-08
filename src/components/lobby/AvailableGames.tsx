@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Clock, Users, Coins, Hash, Play } from 'lucide-react';
 import { useAnchorProgram } from '../../hooks/useAnchorProgram';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 interface AvailableGamesProps {
   availableGames?: any[];
@@ -10,14 +12,21 @@ interface AvailableGamesProps {
 
 export const AvailableGames: React.FC<AvailableGamesProps> = ({ availableGames, stats, loading }) => {
   const { joinRoom } = useAnchorProgram();
+  const navigate = useNavigate();
   const [betFilter, setBetFilter] = useState<string>('');
+  const [joiningGameId, setJoiningGameId] = useState<string | null>(null);
 
   const handleJoinGame = async (game: any) => {
+    setJoiningGameId(game.id);
     try {
       await joinRoom(parseInt(game.id), game.betAmount);
-      // Note: Parent component will handle data refresh
+      toast.success('Successfully joined game!');
+      // Navigate to the game page
+      navigate(`/game/${game.id}`);
     } catch (error) {
       console.error('Failed to join game:', error);
+      toast.error('Failed to join game. Please try again.');
+      setJoiningGameId(null);
     }
   };
 
@@ -186,10 +195,12 @@ export const AvailableGames: React.FC<AvailableGamesProps> = ({ availableGames, 
               <button
                 className="btn btn-xs sm:btn-sm btn-primary w-full"
                 onClick={() => handleJoinGame(game)}
-                disabled={loading}
+                disabled={loading || joiningGameId === game.id}
               >
                 <Play className="w-3 h-3" />
-                <span className="text-xs sm:text-sm">{loading ? 'Joining...' : 'Join Game'}</span>
+                <span className="text-xs sm:text-sm">
+                  {joiningGameId === game.id ? 'Joining...' : 'Join Game'}
+                </span>
               </button>
             </div>
           </div>

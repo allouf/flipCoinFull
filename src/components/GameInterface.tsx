@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PublicKey } from '@solana/web3.js';
 import { useFairCoinFlipper, CoinSide, GamePhase } from '../hooks/useFairCoinFlipper';
 import { useLobbyData } from '../hooks/useLobbyData';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletConnectButton } from './WalletConnectButton';
 import CoinFlipAnimation from './CoinFlipAnimation';
 import { WebSocketManager } from '../services/WebSocketManager';
+import { PROGRAM_ID } from '../config/constants';
 import '../styles/CoinFlipAnimation.css';
 
 // Helper functions
@@ -545,14 +547,43 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
 
     wsManager.on('connectionStatus', handleConnectionStatus);
 
+    // Listen for room updates (e.g., when a player joins)
+    const handleRoomUpdate = async (data: any) => {
+      console.log('🔔 Room update received:', data);
+      // Refresh game state from blockchain when room is updated
+      if (data?.roomId === gameId || data?.id === gameId) {
+        console.log('🔄 Reloading game state due to room update...');
+        const numericGameId = parseInt(gameId);
+        if (!isNaN(numericGameId)) {
+          // Derive the PDA for this game
+          const seeds = [
+            Buffer.from('game'),
+            new Uint8Array(new BigUint64Array([BigInt(numericGameId)]).buffer)
+          ];
+          const [gamePda] = await PublicKey.findProgramAddress(
+            seeds,
+            PROGRAM_ID
+          );
+          loadGameByPda(numericGameId, gamePda.toString());
+        }
+      }
+    };
+
+    wsManager.on('roomUpdate', handleRoomUpdate);
+    wsManager.on('room_state', handleRoomUpdate);
+    wsManager.on('game_update', handleRoomUpdate); // Listen for game events (commitment, reveal, etc.)
+
     // Cleanup function
     return () => {
       if (isSubscribed) {
         wsManager.unsubscribeFromRoom(gameId);
       }
       wsManager.off('connectionStatus', handleConnectionStatus);
+      wsManager.off('roomUpdate', handleRoomUpdate);
+      wsManager.off('room_state', handleRoomUpdate);
+      wsManager.off('game_update', handleRoomUpdate);
     };
-  }, [gameId]);
+  }, [gameId, loadGameByPda]);
 
   // Reset local state when game resets
   useEffect(() => {
@@ -755,67 +786,67 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({ gameId, isGameRoom
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Game Controls */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Choice Selection - Only show during idle phase and revealing phase (to show committed choice) */}
-          {(gameState.phase === 'idle' || (gameState.phase === 'revealing' && gameState.playerChoice)) && (
+          {/* Choice Selection - Only show during idle phase AND not in a game room */}
+          {gameState.phase === 'idle' && !gameId && (
             <div className="bg-white rounded-lg p-6 shadow-md">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                {gameState.phase === 'revealing' ? 'Your Committed Choice' : 'Choose Your Side'}
+                Choose Your Side
               </h3>
               <div className="flex justify-center space-x-8">
                 <CoinChoice
                   side="heads"
-                  selected={gameState.phase === 'revealing' ? gameState.playerChoice === 'heads' : selectedChoice === 'heads'}
-                  disabled={gameState.phase !== 'idle' || isSpectator}
-                  onClick={() => {
-                    console.log('🟡 HEADS BUTTON CLICKED!', {
-                      phase: gameState.phase,
-                      playerChoice: gameState.playerChoice,
-                      selectedChoice: selectedChoice,
-                      disabled: gameState.phase !== 'idle'
-                    });
-                    if (gameState.phase === 'revealing') {
-                      console.log('❌ HEADS BUTTON CLICKED DURING REVEAL - THIS SHOULD NOT HAPPEN!');
-                      return;
-                    }
-                    setSelectedChoice('heads');
-                  }}
+                  selected={selectedChoice === 'heads'}
+                  disabled={isSpectator}
+                  onClick={() => setSelectedChoice('heads')}
                 />
                 <CoinChoice
                   side="tails"
-                  selected={gameState.phase === 'revealing' ? gameState.playerChoice === 'tails' : selectedChoice === 'tails'}
-                  disabled={gameState.phase !== 'idle' || isSpectator}
-                  onClick={() => {
-                    console.log('🟡 TAILS BUTTON CLICKED!', {
-                      phase: gameState.phase,
-                      playerChoice: gameState.playerChoice,
-                      selectedChoice: selectedChoice,
-                      disabled: gameState.phase !== 'idle'
-                    });
-                    if (gameState.phase === 'revealing') {
-                      console.log('❌ TAILS BUTTON CLICKED DURING REVEAL - THIS SHOULD NOT HAPPEN!');
-                      return;
-                    }
-                    setSelectedChoice('tails');
-                  }}
+                  selected={selectedChoice === 'tails'}
+                  disabled={isSpectator}
+                  onClick={() => setSelectedChoice('tails')}
                 />
               </div>
-              {gameState.phase === 'revealing' && (
-                <div className="mt-4 text-center">
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
-                    <p className="text-sm text-green-800 font-medium">
-                      ✅ Your choice is locked: {gameState.playerChoice?.toUpperCase() || 'Loading...'}
-                    </p>
-                    <p className="text-xs text-green-700 mt-1">
-                      Ready to reveal and see who wins!
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
-          {/* Game Actions - Hide when resolved */}
-          {gameState.phase !== 'resolved' && (
+          {/* Show committed choice during revealing phase */}
+          {gameState.phase === 'revealing' && gameState.playerChoice && (
+            <div className="bg-white rounded-lg p-6 shadow-md">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                Your Committed Choice
+              </h3>
+              <div className="flex justify-center space-x-8">
+                <CoinChoice
+                  side="heads"
+                  selected={gameState.playerChoice === 'heads'}
+                  disabled={true}
+                  onClick={() => {}}
+                />
+                <CoinChoice
+                  side="tails"
+                  selected={gameState.playerChoice === 'tails'}
+                  disabled={true}
+                  onClick={() => {}}
+                />
+              </div>
+              <div className="mt-4 text-center">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-sm text-green-800 font-medium">
+                    ✅ Your choice is locked: {gameState.playerChoice?.toUpperCase()}
+                  </p>
+                  <p className="text-xs text-green-700 mt-1">
+                    Ready to reveal and see who wins!
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Game Actions - Only show when there's actual content to display */}
+          {((gameState.phase === 'idle' && !isGameRoom) ||
+           gameState.phase === 'waiting' ||
+           gameState.phase === 'committing' ||
+           gameState.phase === 'revealing') && (
             <div className="bg-white rounded-lg p-6 shadow-md space-y-6">
               {gameState.phase === 'idle' && !isGameRoom && (
               <>

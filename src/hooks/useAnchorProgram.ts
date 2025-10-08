@@ -399,27 +399,19 @@ export const useAnchorProgram = () => {
       program.programId,
     );
 
-    // Derive global state PDA (required by JoinRoom struct)
-    const [globalStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('global_state')],
-      program.programId,
-    );
-
     console.log('Joining room with:');
     console.log('- Game Room PDA:', gameRoomPda.toString());
     console.log('- Escrow PDA:', escrowPda.toString());
-    console.log('- Global State PDA:', globalStatePda.toString());
 
     try {
       const tx = await retryTransaction(
         program.provider.connection,
         () => program.methods
-          .joinRoom()
+          .joinGame()
           .accounts({
-            gameRoom: gameRoomPda,
-            escrowAccount: escrowPda,
-            globalState: globalStatePda,
-            joiner: wallet.publicKey!,
+            playerB: wallet.publicKey!,
+            game: gameRoomPda,
+            escrow: escrowPda,
             systemProgram: SystemProgram.programId,
           })
           .rpc({
@@ -429,6 +421,21 @@ export const useAnchorProgram = () => {
           }),
         { maxRetries: 3, retryDelay: 1000 },
       );
+
+      // Send WebSocket notification to other players in the room
+      try {
+        const { webSocketManager } = await import('../services/WebSocketManager');
+        webSocketManager.sendMessage('game_event', {
+          type: 'player_joined',
+          roomId: roomId.toString(),
+          playerId: wallet.publicKey!.toString(),
+          timestamp: Date.now(),
+        });
+        console.log('✅ Sent player_joined event via WebSocket');
+      } catch (wsError) {
+        console.warn('Failed to send WebSocket notification:', wsError);
+        // Don't throw - WebSocket is optional, game works without it
+      }
 
       return { tx, gameRoomPda };
     } catch (error) {

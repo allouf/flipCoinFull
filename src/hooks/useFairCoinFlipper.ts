@@ -555,7 +555,7 @@ export const useFairCoinFlipper = () => {
   }, [program]);
 
   // Handle game resolution - stub implementation
-  const handleGameResolution = useCallback(async (gameAccount: any) => {
+  const handleGameResolution = useCallback(async (gameAccount: any, playerRole?: 'creator' | 'joiner') => {
     try {
       console.log('Handling game resolution:', gameAccount);
 
@@ -564,16 +564,46 @@ export const useFairCoinFlipper = () => {
       const coinResult = (gameAccount as any).coinResult;
       const winnerPayout = (gameAccount as any).winnerPayout;
       const houseFee = (gameAccount as any).houseFee;
-      const choice_a = (gameAccount as any).choiceA || (gameAccount as any).choice_a;
-      const choice_b = (gameAccount as any).choiceB || (gameAccount as any).choice_b;
+
+      // Choices are stored as Option<CoinSide> in Rust/Anchor, might be null or wrapped
+      let choice_a = (gameAccount as any).choiceA || (gameAccount as any).choice_a;
+      let choice_b = (gameAccount as any).choiceB || (gameAccount as any).choice_b;
+
+      // Unwrap if they're wrapped in an object with a value property
+      if (choice_a && typeof choice_a === 'object' && 'value' in choice_a) {
+        choice_a = choice_a.value;
+      }
+      if (choice_b && typeof choice_b === 'object' && 'value' in choice_b) {
+        choice_b = choice_b.value;
+      }
+
+      // Use passed playerRole or fall back to current state
+      const currentPlayerRole = playerRole || gameState.playerRole;
 
       console.log('🔍 DEBUG - Raw blockchain choices:', {
         choice_a,
         choice_b,
         choice_a_type: typeof choice_a,
         choice_b_type: typeof choice_b,
-        playerRole: gameState.playerRole
+        choice_a_keys: choice_a && typeof choice_a === 'object' ? Object.keys(choice_a) : 'not object',
+        choice_b_keys: choice_b && typeof choice_b === 'object' ? Object.keys(choice_b) : 'not object',
+        playerRole: currentPlayerRole,
+        playerRole_source: playerRole ? 'passed parameter' : 'gameState fallback'
       });
+
+      // If we still don't have playerRole, try to determine it from the game account
+      let finalPlayerRole = currentPlayerRole;
+      if (!finalPlayerRole && wallet.publicKey) {
+        const playerA = (gameAccount as any).playerA;
+        const playerB = (gameAccount as any).playerB;
+        if (wallet.publicKey.equals(playerA)) {
+          finalPlayerRole = 'creator';
+          console.log('🔍 Determined player role from wallet comparison: creator');
+        } else if (wallet.publicKey.equals(playerB)) {
+          finalPlayerRole = 'joiner';
+          console.log('🔍 Determined player role from wallet comparison: joiner');
+        }
+      }
 
       // Helper to convert Anchor enum to string
       const convertChoice = (choice: any): CoinSide | null => {
@@ -602,16 +632,19 @@ export const useFairCoinFlipper = () => {
 
       // Determine opponent's choice based on current player role
       let opponentChoice: CoinSide | null = null;
-      const currentPlayerRole = gameState.playerRole;
-      if (currentPlayerRole === 'creator') {
+      if (finalPlayerRole === 'creator') {
         // Player is A, opponent is B
         opponentChoice = convertChoice(choice_b);
-      } else if (currentPlayerRole === 'joiner') {
+        console.log('🎯 Player is creator (A), extracting opponent choice from choice_b:', choice_b, '→', opponentChoice);
+      } else if (finalPlayerRole === 'joiner') {
         // Player is B, opponent is A
         opponentChoice = convertChoice(choice_a);
+        console.log('🎯 Player is joiner (B), extracting opponent choice from choice_a:', choice_a, '→', opponentChoice);
+      } else {
+        console.error('❌ Could not determine player role! Cannot extract opponent choice.');
       }
 
-      console.log('🎯 Extracted opponent choice:', opponentChoice);
+      console.log('🎯 Final opponent choice:', opponentChoice, 'for playerRole:', finalPlayerRole);
 
       const resolvedData = {
         winner: winner?.toString() || null,
@@ -645,7 +678,7 @@ export const useFairCoinFlipper = () => {
     } catch (error) {
       console.error('Error handling game resolution:', error);
     }
-  }, []);
+  }, [gameState.playerRole]);
 
   // Start commitment polling - stub implementation
   const startCommitmentPolling = useCallback((gameId: number) => {
@@ -1106,14 +1139,17 @@ export const useFairCoinFlipper = () => {
       } else if ('resolved' in status) {
         phase = 'resolved';
         blockchainStatus = 'Resolved';
+        // Determine player role
+        const playerRole = isPlayerA ? 'creator' : 'joiner';
         // Set player role before calling handleGameResolution
         setGameState(prev => ({
           ...prev,
           gameId,
-          playerRole: isPlayerA ? 'creator' : 'joiner',
+          playerRole,
           betAmount,
         }));
-        await handleGameResolution(gameAccount);
+        // Pass playerRole to ensure correct opponent choice extraction
+        await handleGameResolution(gameAccount, playerRole);
         // handleGameResolution sets all the resolved data, so return early
         setLoading(false);
         return true;
@@ -1305,6 +1341,21 @@ export const useFairCoinFlipper = () => {
         .rpc();
 
       console.log('✅ Commitment transaction successful:', tx);
+
+      // Send WebSocket notification to other players in the room
+      try {
+        const { webSocketManager } = await import('../services/WebSocketManager');
+        webSocketManager.sendMessage('game_event', {
+          type: 'commitment_made',
+          roomId: gameState.gameId,
+          playerId: wallet.publicKey.toString(),
+          timestamp: Date.now(),
+        });
+        console.log('✅ Sent commitment_made event via WebSocket');
+      } catch (wsError) {
+        console.warn('Failed to send WebSocket notification:', wsError);
+        // Don't throw - WebSocket is optional, game works without it
+      }
 
       // Store choice and secret locally for reveal phase
       setGameState(prev => ({
@@ -1689,6 +1740,21 @@ export const useFairCoinFlipper = () => {
         .rpc();
 
       console.log('✅ Reveal transaction successful:', tx);
+
+      // Send WebSocket notification to other players in the room
+      try {
+        const { webSocketManager } = await import('../services/WebSocketManager');
+        webSocketManager.sendMessage('game_event', {
+          type: 'choice_revealed',
+          roomId: gameState.gameId,
+          playerId: wallet.publicKey.toString(),
+          timestamp: Date.now(),
+        });
+        console.log('✅ Sent choice_revealed event via WebSocket');
+      } catch (wsError) {
+        console.warn('Failed to send WebSocket notification:', wsError);
+        // Don't throw - WebSocket is optional, game works without it
+      }
 
       // IMPORTANT: Re-fetch game state immediately to check if auto-resolution happened
       // When the second player reveals, the smart contract auto-resolves the game
