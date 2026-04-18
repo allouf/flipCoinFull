@@ -42,6 +42,7 @@ module.exports = {
         zlib: require.resolve('browserify-zlib'),
         fs: false,
         path: require.resolve('path-browserify'),
+        vm: require.resolve('vm-browserify'),
       };
 
       // Add ProvidePlugin

@@ -14,19 +14,19 @@ const commitmentsAPI = require('./api/commitments');
 const app = express();
 const server = http.createServer(app);
 
-// Configure CORS
+// Build allowed origins from env vars (comma-separated) + localhost dev ports
+const envOrigins = [process.env.FRONTEND_URL, process.env.ALLOWED_ORIGINS]
+  .filter(Boolean)
+  .flatMap((v) => v.split(','))
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const localDevOrigins = Array.from({ length: 11 }, (_, i) => `http://localhost:${3000 + i}`);
+
+const allowedOrigins = [...new Set([...localDevOrigins, ...envOrigins])];
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:3002',
-    'http://localhost:3003',
-    'http://localhost:3004',
-    'http://localhost:3005',
-    'http://localhost:3010',
-    'https://solana-coin-flipper.vercel.app',
-    process.env.FRONTEND_URL
-  ].filter(Boolean),
+  origin: allowedOrigins,
   credentials: true
 }));
 
@@ -35,17 +35,7 @@ app.use(express.json());
 // Configure Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002',
-      'http://localhost:3003',
-      'http://localhost:3004',
-      'http://localhost:3005',
-      'http://localhost:3010',
-      'https://solana-coin-flipper.vercel.app',
-      process.env.FRONTEND_URL
-    ].filter(Boolean),
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true
   }
